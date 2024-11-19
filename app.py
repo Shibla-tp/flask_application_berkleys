@@ -97,13 +97,13 @@ def fetch_and_update_data():
         send_to_airtable_if_new(df, airtable_new, unique_field='linkedinProfile')
         send_to_airtable_if_new(df, airtable_new1, unique_field='linkedinProfile', desired_fields=desired_fields)
 
-        for i in range(0, len(record_ids), 10):
-            batch_ids = record_ids[i:i + 10]
-            try:
-                airtable_old.batch_delete(batch_ids)
-                print(f"Deleted records: {batch_ids}")
-            except Exception as e:
-                print(f"Failed to delete records {batch_ids}: {e}")
+        # for i in range(0, len(record_ids), 10):
+        #     batch_ids = record_ids[i:i + 10]
+        #     try:
+        #         airtable_old.batch_delete(batch_ids)
+        #         print(f"Deleted records: {batch_ids}")
+        #     except Exception as e:
+        #         print(f"Failed to delete records {batch_ids}: {e}")
 
         return jsonify({"message": "Data cleaned, updated, and old records deleted successfully."})
 
