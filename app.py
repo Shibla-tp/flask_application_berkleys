@@ -9,12 +9,12 @@ app = Flask(__name__)
 # Old Airtable Configuration
 BASE_ID_OLD = 'app5s8zl7DsUaDmtx'
 API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3'  # Replace with a secure method to fetch the key
-TABLE_NAME_OLD = 'linkedin_profile_data'
+TABLE_NAME_OLD = 'backup_linkedin_profile_data_171124'
 
 # New Airtable Configuration
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'cleaned_profile_information'
-TABLE_NAME_NEW1 = 'campaign_input'
+TABLE_NAME_NEW1 = 'outreach_contacts'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
 
 airtable_old = Airtable(BASE_ID_OLD, TABLE_NAME_OLD, API_KEY)
@@ -52,6 +52,17 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
         else:
             print(f"Record {i} already exists in Airtable. Skipping insertion.")
 
+def process_email(email):
+    # Handle empty strings or invalid values
+    if not email or email in [",", "unknown"]:
+        return "Unknown"
+
+    # Split on commas if present, and take the first valid email
+    emails = [e.strip() for e in email.split(',') if e.strip()]
+    if emails:
+        return emails[-1]  # Take the last email if multiple are present
+
+    return "Unknown"  # Default to "Unknown" if no valid email found
 
 @app.route("/", methods=["GET"])
 def fetch_and_update_data():
@@ -79,23 +90,28 @@ def fetch_and_update_data():
 
         if 'phoneNumber' in df.columns:
             df['phoneNumber'] = df['phoneNumber'].apply(
-                lambda x: "Unknown" if str(x).lower() == "unknown" else pd.Series(str(x)).str.replace(r'\D', '', regex=True).iloc[0]
+                lambda x: "Unknown" if str(x).lower() == "Unknown" else pd.Series(str(x)).str.replace(r'\D', '', regex=True).iloc[0]
             )
 
         if 'email' in df.columns:
             df['email'] = (
                 df['email']
-                .astype(str)
-                .str.lower()
-                .str.strip()
-                .apply(lambda x: "Unknown" if x == "," else x.split(',')[-1].strip() if ',' in x else x)
+                .astype(str)  # Ensure all entries are strings
+                .str.lower()  # Convert to lowercase for consistency
+                .str.strip()  # Remove leading/trailing whitespace
+                .apply(lambda x: process_email(x))  # Apply custom processing
             )
 
+        # Drop duplicates based on the 'LinkedIn Profile' column
+        df = df.drop_duplicates(subset=['linkedinProfile'])
+        # Filter records with email not equal to "Unknown"
+        filtered_df = df[df['email'] != "Unknown"]
+        filtered_df = filtered_df.drop_duplicates(subset=['linkedinProfile'])
         desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'linkedinProfile', 
                           'description', 'location', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp']
 
         send_to_airtable_if_new(df, airtable_new, unique_field='linkedinProfile')
-        send_to_airtable_if_new(df, airtable_new1, unique_field='linkedinProfile', desired_fields=desired_fields)
+        send_to_airtable_if_new(filtered_df, airtable_new1, unique_field='linkedinProfile', desired_fields=desired_fields)
 
         # for i in range(0, len(record_ids), 10):
         #     batch_ids = record_ids[i:i + 10]
