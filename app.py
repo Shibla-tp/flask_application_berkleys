@@ -9,7 +9,7 @@ app = Flask(__name__)
 # Old Airtable Configuration
 BASE_ID_OLD = 'app5s8zl7DsUaDmtx'
 API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3'  # Replace with a secure method to fetch the key
-TABLE_NAME_OLD = 'backup_linkedin_profile_data_171124'
+TABLE_NAME_OLD = 'linkedin_profile_data'
 
 # New Airtable Configuration
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
