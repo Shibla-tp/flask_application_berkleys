@@ -9,11 +9,11 @@ app = Flask(__name__)
 # Old Airtable Configuration
 BASE_ID_OLD = 'app5s8zl7DsUaDmtx'
 API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3'  # Replace with a secure method to fetch the key
-TABLE_NAME_OLD = 'backup_linkedin_profile_data_171124'
+TABLE_NAME_OLD = 'linkedin_profile_data'
 
 # New Airtable Configuration
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
-TABLE_NAME_NEW = 'cleaned_profile_information'
+TABLE_NAME_NEW = 'cleaned_profile_data'
 TABLE_NAME_NEW1 = 'outreach_contacts'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
 
@@ -42,6 +42,9 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
         record_data = row.dropna().to_dict()
         if desired_fields:
             record_data = {field: row[field] for field in desired_fields if field in row and not pd.isna(row[field])}
+
+        if "createdTime" in record_data:
+            del record_data["createdTime"]
 
         if not record_exists_in_airtable(airtable_instance, record_data, unique_field):
             try:
@@ -82,16 +85,38 @@ def fetch_and_update_data():
         df = df.where(pd.notnull(df), None)
 
         # Handle missing values
-        numerical_cols = df.select_dtypes(include=[np.number]).columns
-        df[numerical_cols] = df[numerical_cols].fillna(df[numerical_cols].mean())
+        # numerical_cols = df.select_dtypes(include=[np.number]).columns
+        # df[numerical_cols] = df[numerical_cols].fillna(df[numerical_cols].mean())
 
         for column in df.select_dtypes(include=['object']).columns:
             df[column].fillna("Unknown", inplace=True)
 
+        # if 'phoneNumber' in df.columns:
+        #     df['phoneNumber'] = df['phoneNumber'].apply(
+        #         lambda x: "Unknown" if str(x).lower() == "Unknown" else pd.Series(str(x)).str.replace(r'\D', '', regex=True).iloc[0]
+        #     )
+        # if 'phoneNumber' in df.columns:
+        #     def clean_phone_number(x):
+        #         if str(x).lower() == "unknown":
+        #             return "Unknown"
+        #         return pd.Series(str(x)).str.replace(r'\D', '', regex=True).iloc[0]
+
+        #     df['phoneNumber'] = df['phoneNumber'].apply(clean_phone_number)
         if 'phoneNumber' in df.columns:
-            df['phoneNumber'] = df['phoneNumber'].apply(
-                lambda x: "Unknown" if str(x).lower() == "Unknown" else pd.Series(str(x)).str.replace(r'\D', '', regex=True).iloc[0]
-            )
+            def clean_phone_number(x):
+                # Handle missing or invalid values
+                if pd.isna(x) or not str(x).strip():
+                    return "Unknown"
+                x = str(x).strip()  # Remove leading/trailing whitespace
+                # If already marked as "unknown"
+                if x.lower() == "unknown":
+                    return "Unknown"
+                # Remove non-numeric characters and return cleaned number
+                cleaned_number = ''.join(filter(str.isdigit, x))
+                return cleaned_number if cleaned_number else "Unknown"
+
+            df['phoneNumber'] = df['phoneNumber'].apply(clean_phone_number)
+
 
         if 'email' in df.columns:
             df['email'] = (
@@ -103,15 +128,14 @@ def fetch_and_update_data():
             )
 
         # Drop duplicates based on the 'LinkedIn Profile' column
-        df = df.drop_duplicates(subset=['linkedinProfile'])
+        df = df.drop_duplicates(subset=['linkedinProfileUrl'])
         # Filter records with email not equal to "Unknown"
         filtered_df = df[df['email'] != "Unknown"]
-        filtered_df = filtered_df.drop_duplicates(subset=['linkedinProfile'])
-        desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'linkedinProfile', 
-                          'description', 'location', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp']
+        filtered_df = filtered_df.drop_duplicates(subset=['linkedinProfileUrl'])
+        desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'description', 'location', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp']
 
-        send_to_airtable_if_new(df, airtable_new, unique_field='linkedinProfile')
-        send_to_airtable_if_new(filtered_df, airtable_new1, unique_field='linkedinProfile', desired_fields=desired_fields)
+        send_to_airtable_if_new(df, airtable_new, unique_field='linkedinProfileUrl')
+        send_to_airtable_if_new(filtered_df, airtable_new1, unique_field='linkedinProfileUrl', desired_fields=desired_fields)
 
         # for i in range(0, len(record_ids), 10):
         #     batch_ids = record_ids[i:i + 10]
