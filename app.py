@@ -12,6 +12,7 @@ API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53e
 TABLE_NAME_OLD = 'linkedin_profile_data'
 
 # New Airtable Configuration
+# BASE_ID_NEW = 'appTEXhgxahKgWLgx'
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'cleaned_profile_data'
 TABLE_NAME_NEW1 = 'campaign_input'
@@ -118,6 +119,19 @@ def fetch_and_update_data():
                 .str.strip()  # Remove leading/trailing whitespace
                 .apply(lambda x: process_email(x))  # Apply custom processing
             )
+        
+        if 'companyWebsite' in df.columns:
+            def clean_company_website(url, unique_id):
+                if pd.isna(url) or not str(url).strip() or url.lower() in ["unknown", "n/a"]:
+                    return f"https://unknown-company-{unique_id}.com"
+                url = url.strip()
+                if not url.startswith(("http://", "https://")):
+                    url = "https://" + url
+                return url
+
+            df['companyWebsite'] = df.apply(
+                lambda row: clean_company_website(row['companyWebsite'], row.name), axis=1
+    )
 
         # Drop duplicates based on the 'LinkedIn Profile' column
         df = df.drop_duplicates(subset=['linkedinProfileUrl'])
