@@ -15,7 +15,7 @@ TABLE_NAME_OLD = 'linkedin_profile_data'
 BASE_ID_NEW = 'appTEXhgxahKgWLgx'
 TABLE_NAME_NEW = 'cleaned_profile_data'
 TABLE_NAME_NEW1 = 'outreach_contacts'
-API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
+API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
 # 'AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
 
 airtable_old = Airtable(BASE_ID_OLD, TABLE_NAME_OLD, API_KEY)
