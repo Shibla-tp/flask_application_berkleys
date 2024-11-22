@@ -12,10 +12,11 @@ API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53e
 TABLE_NAME_OLD = 'linkedin_profile_data'
 
 # New Airtable Configuration
-BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
+BASE_ID_NEW = 'appTEXhgxahKgWLgx'
 TABLE_NAME_NEW = 'cleaned_profile_data'
 TABLE_NAME_NEW1 = 'outreach_contacts'
-API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
+API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
+# 'AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
 
 airtable_old = Airtable(BASE_ID_OLD, TABLE_NAME_OLD, API_KEY)
 airtable_new = Airtable(BASE_ID_NEW, TABLE_NAME_NEW, API_KEY_NEW)
@@ -84,10 +85,6 @@ def fetch_and_update_data():
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
         df = df.where(pd.notnull(df), None)
 
-        # Handle missing values
-        # numerical_cols = df.select_dtypes(include=[np.number]).columns
-        # df[numerical_cols] = df[numerical_cols].fillna(df[numerical_cols].mean())
-
         for column in df.select_dtypes(include=['object']).columns:
             df[column].fillna("Unknown", inplace=True)
 
@@ -102,21 +99,42 @@ def fetch_and_update_data():
         #         return pd.Series(str(x)).str.replace(r'\D', '', regex=True).iloc[0]
 
         #     df['phoneNumber'] = df['phoneNumber'].apply(clean_phone_number)
+        # if 'phoneNumber' in df.columns:
+        #     def clean_phone_number(x):
+        #         # Handle missing or invalid values
+        #         if pd.isna(x) or not str(x).strip():
+        #             return "Unknown"
+        #         x = str(x).strip()  # Remove leading/trailing whitespace
+        #         # If already marked as "unknown"
+        #         if x.lower() == "unknown":
+        #             return "Unknown"
+        #         # Remove non-numeric characters and return cleaned number
+        #         cleaned_number = ''.join(filter(str.isdigit, x))
+        #         return cleaned_number if cleaned_number else "Unknown"
+
+        #     df['phoneNumber'] = df['phoneNumber'].apply(clean_phone_number)
+
         if 'phoneNumber' in df.columns:
             def clean_phone_number(x):
                 # Handle missing or invalid values
                 if pd.isna(x) or not str(x).strip():
                     return "Unknown"
+                
                 x = str(x).strip()  # Remove leading/trailing whitespace
+                
                 # If already marked as "unknown"
                 if x.lower() == "unknown":
                     return "Unknown"
-                # Remove non-numeric characters and return cleaned number
-                cleaned_number = ''.join(filter(str.isdigit, x))
+                
+                # Preserve the "+" if it exists at the start of the number
+                if x.startswith("+"):
+                    cleaned_number = '+' + ''.join(filter(str.isdigit, x))
+                else:
+                    cleaned_number = ''.join(filter(str.isdigit, x))
+                
                 return cleaned_number if cleaned_number else "Unknown"
 
             df['phoneNumber'] = df['phoneNumber'].apply(clean_phone_number)
-
 
         if 'email' in df.columns:
             df['email'] = (
