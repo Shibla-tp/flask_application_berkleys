@@ -88,32 +88,6 @@ def fetch_and_update_data():
         for column in df.select_dtypes(include=['object']).columns:
             df[column].fillna("Unknown", inplace=True)
 
-        # if 'phoneNumber' in df.columns:
-        #     df['phoneNumber'] = df['phoneNumber'].apply(
-        #         lambda x: "Unknown" if str(x).lower() == "Unknown" else pd.Series(str(x)).str.replace(r'\D', '', regex=True).iloc[0]
-        #     )
-        # if 'phoneNumber' in df.columns:
-        #     def clean_phone_number(x):
-        #         if str(x).lower() == "unknown":
-        #             return "Unknown"
-        #         return pd.Series(str(x)).str.replace(r'\D', '', regex=True).iloc[0]
-
-        #     df['phoneNumber'] = df['phoneNumber'].apply(clean_phone_number)
-        # if 'phoneNumber' in df.columns:
-        #     def clean_phone_number(x):
-        #         # Handle missing or invalid values
-        #         if pd.isna(x) or not str(x).strip():
-        #             return "Unknown"
-        #         x = str(x).strip()  # Remove leading/trailing whitespace
-        #         # If already marked as "unknown"
-        #         if x.lower() == "unknown":
-        #             return "Unknown"
-        #         # Remove non-numeric characters and return cleaned number
-        #         cleaned_number = ''.join(filter(str.isdigit, x))
-        #         return cleaned_number if cleaned_number else "Unknown"
-
-        #     df['phoneNumber'] = df['phoneNumber'].apply(clean_phone_number)
-
         if 'phoneNumber' in df.columns:
             def clean_phone_number(x):
                 # Handle missing or invalid values
