@@ -23,7 +23,6 @@ airtable_old = Airtable(BASE_ID_OLD, TABLE_NAME_OLD, API_KEY)
 airtable_new = Airtable(BASE_ID_NEW, TABLE_NAME_NEW, API_KEY_NEW)
 airtable_new1 = Airtable(BASE_ID_NEW, TABLE_NAME_NEW1, API_KEY_NEW)
 
-
 def record_exists_in_airtable(airtable_instance, record_data, unique_field):
     """
     Check if a record with the same unique identifier already exists in Airtable.
@@ -39,16 +38,21 @@ def record_exists_in_airtable(airtable_instance, record_data, unique_field):
 def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None):
     """
     Inserts records into Airtable if they are not already present, based on a unique identifier.
+    Handles duplicate linkedinProfileUrl with different emails by considering them as separate records.
     """
     for i, row in df.iterrows():
         record_data = row.dropna().to_dict()
         if desired_fields:
             record_data = {field: row[field] for field in desired_fields if field in row and not pd.isna(row[field])}
 
+        # Ensure 'createdTime' is not part of the record
         if "createdTime" in record_data:
             del record_data["createdTime"]
 
-        if not record_exists_in_airtable(airtable_instance, record_data, unique_field):
+        # Check if the record exists using linkedinProfileUrl and email together
+        unique_identifier = f"{record_data.get('linkedinProfileUrl', '')}_{record_data.get('email', '')}"
+
+        if not record_exists_in_airtable(airtable_instance, {"unique_id": unique_identifier}, unique_field):
             try:
                 airtable_instance.insert(record_data)
                 print(f"Record {i} inserted successfully.")
@@ -57,17 +61,33 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
         else:
             print(f"Record {i} already exists in Airtable. Skipping insertion.")
 
+
+
 def process_email(email):
-    # Handle empty strings or invalid values
-    if not email or email in [",", "unknown"]:
+    """
+    Processes the email field:
+    - If email is `,`, empty, or missing, return 'Unknown'.
+    - Otherwise, return the original email.
+    """
+    if not email or email in [",", "unknown", "Unknown", ""]:
         return "Unknown"
+    return email.strip()  # Clean leading/trailing spaces
 
-    # Split on commas if present, and take the first valid email
-    emails = [e.strip() for e in email.split(',') if e.strip()]
-    if emails:
-        return emails[-1]  # Take the last email if multiple are present
-
-    return "Unknown"  # Default to "Unknown" if no valid email found
+def expand_emails(df):
+    """
+    Duplicates rows for each email present in a comma-separated email field.
+    If a single email is present, it returns the same row without duplication.
+    """
+    rows = []
+    for i, row in df.iterrows():
+        emails = row['email'].split(',') if row['email'] != "Unknown" else ["Unknown"]
+        for email in emails:
+            email = email.strip()  # Clean up individual emails
+            if email:  # Ignore empty email entries
+                new_row = row.copy()
+                new_row['email'] = email
+                rows.append(new_row)
+    return pd.DataFrame(rows)
 
 @app.route("/", methods=["GET"])
 def fetch_and_update_data():
@@ -91,22 +111,15 @@ def fetch_and_update_data():
 
         if 'phoneNumber' in df.columns:
             def clean_phone_number(x):
-                # Handle missing or invalid values
                 if pd.isna(x) or not str(x).strip():
                     return "Unknown"
-                
-                x = str(x).strip()  # Remove leading/trailing whitespace
-                
-                # If already marked as "unknown"
+                x = str(x).strip()
                 if x.lower() == "unknown":
                     return "Unknown"
-                
-                # Preserve the "+" if it exists at the start of the number
                 if x.startswith("+"):
                     cleaned_number = '+' + ''.join(filter(str.isdigit, x))
                 else:
                     cleaned_number = ''.join(filter(str.isdigit, x))
-                
                 return cleaned_number if cleaned_number else "Unknown"
 
             df['phoneNumber'] = df['phoneNumber'].apply(clean_phone_number)
@@ -114,12 +127,12 @@ def fetch_and_update_data():
         if 'email' in df.columns:
             df['email'] = (
                 df['email']
-                .astype(str)  # Ensure all entries are strings
-                .str.lower()  # Convert to lowercase for consistency
-                .str.strip()  # Remove leading/trailing whitespace
-                .apply(lambda x: process_email(x))  # Apply custom processing
+                .astype(str)
+                .str.lower()
+                .str.strip()
+                .apply(lambda x: process_email(x))
             )
-        
+
         if 'companyWebsite' in df.columns:
             def clean_company_website(url, unique_id):
                 if pd.isna(url) or not str(url).strip() or url.lower() in ["unknown", "n/a"]:
@@ -131,18 +144,17 @@ def fetch_and_update_data():
 
             df['companyWebsite'] = df.apply(
                 lambda row: clean_company_website(row['companyWebsite'], row.name), axis=1
-    )
+            )
 
-        # Drop duplicates based on the 'LinkedIn Profile' column
-        df = df.drop_duplicates(subset=['linkedinProfileUrl'])
+        # Duplicate rows for each email
+        df = expand_emails(df)
+
+        # Drop duplicates based on 'linkedinProfileUrl' and 'email'
+        df = df.drop_duplicates(subset=['linkedinProfileUrl', 'email'])
+
         # Filter records with email not equal to "Unknown"
         filtered_df = df[df['email'] != "Unknown"]
-        filtered_df = filtered_df.drop_duplicates(subset=['linkedinProfileUrl'])
-        desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'description', 'location', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp']
-
-        send_to_airtable_if_new(df, airtable_new, unique_field='linkedinProfileUrl')
-        send_to_airtable_if_new(filtered_df, airtable_new1, unique_field='linkedinProfileUrl', desired_fields=desired_fields)
-
+        
         # for i in range(0, len(record_ids), 10):
         #     batch_ids = record_ids[i:i + 10]
         #     try:
@@ -151,7 +163,14 @@ def fetch_and_update_data():
         #     except Exception as e:
         #         print(f"Failed to delete records {batch_ids}: {e}")
 
-        return jsonify({"message": "Data cleaned, updated, and old records deleted successfully."})
+        # Prepare desired fields for insertion
+        desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'description',
+                          'location', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp']
+
+        send_to_airtable_if_new(df, airtable_new, unique_field='linkedinProfileUrl')
+        send_to_airtable_if_new(filtered_df, airtable_new1, unique_field='linkedinProfileUrl', desired_fields=desired_fields)
+
+        return jsonify({"message": "Data cleaned, updated, and old records processed successfully."})
 
     except Exception as e:
         return jsonify({"error": f"Error fetching, processing, or deleting data: {e}"}), 500
