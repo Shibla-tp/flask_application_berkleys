@@ -17,7 +17,8 @@ BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'cleaned_profile_data'
 TABLE_NAME_NEW1 = 'campaign_input'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
-# 'AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
+# API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
+#'AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
 
 airtable_old = Airtable(BASE_ID_OLD, TABLE_NAME_OLD, API_KEY)
 airtable_new = Airtable(BASE_ID_NEW, TABLE_NAME_NEW, API_KEY_NEW)
@@ -31,6 +32,7 @@ def record_exists_in_airtable(airtable_instance, record_data, unique_field):
     if not unique_value:
         return False
 
+    # Search for the uniqueId field in Airtable
     search_result = airtable_instance.search(unique_field, unique_value)
     return len(search_result) > 0
 
@@ -49,10 +51,16 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
         if "createdTime" in record_data:
             del record_data["createdTime"]
 
-        # Check if the record exists using linkedinProfileUrl and email together
-        unique_identifier = f"{record_data.get('linkedinProfileUrl', '')}_{record_data.get('email', '')}"
+        # Generate the uniqueId locally
+        uniqueId = f"{record_data.get('linkedinProfileUrl', '')}_{record_data.get('email', '')}"
+        record_data["uniqueId"] = uniqueId
+      
+        
+        # Update the df with the new `uniqueId`
+        # airtable_instance.update(i , {'uniqueId': uniqueId})
 
-        if not record_exists_in_airtable(airtable_instance, {"unique_id": unique_identifier}, unique_field):
+
+        if not record_exists_in_airtable(airtable_instance, {"uniqueId": uniqueId}, "uniqueId"):
             try:
                 airtable_instance.insert(record_data)
                 print(f"Record {i} inserted successfully.")
@@ -60,8 +68,6 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
                 print(f"Failed to insert record {i}: {e}")
         else:
             print(f"Record {i} already exists in Airtable. Skipping insertion.")
-
-
 
 def process_email(email):
     """
@@ -88,6 +94,37 @@ def expand_emails(df):
                 new_row['email'] = email
                 rows.append(new_row)
     return pd.DataFrame(rows)
+
+# def add_unique_id_to_airtable(airtable_instance):
+#     """
+#     Adds a `uniqueId` field to all records in the Airtable table by combining `linkedinProfileUrl` and `email`.
+#     """
+#     try:
+#         all_records = airtable_instance.get_all()
+
+#         for record in all_records:
+#             record_id = record['id']
+#             fields = record.get('fields', {})
+            
+#             # Get values for `linkedinProfileUrl` and `email`
+#             linkedin_profile = fields.get('linkedinProfileUrl', '').strip()
+#             email = fields.get('email', '').strip()
+
+#             # Generate unique_id
+#             if linkedin_profile and email:
+#                 uniqueId = f"{linkedin_profile}_{email}"
+#             elif linkedin_profile:
+#                 uniqueId = linkedin_profile
+#             else:
+#                 uniqueId = "Unknown"
+
+#             # Update the record with the new `uniqueId`
+#             airtable_instance.update(record_id, {'uniqueId': uniqueId})
+#             print(f"Updated record {record_id} with uniqueId: {uniqueId}")
+
+#     except Exception as e:
+#         print(f"Error updating Airtable records: {e}")
+
 
 @app.route("/", methods=["GET"])
 def fetch_and_update_data():
@@ -154,7 +191,7 @@ def fetch_and_update_data():
 
         # Filter records with email not equal to "Unknown"
         filtered_df = df[df['email'] != "Unknown"]
-        
+
         # for i in range(0, len(record_ids), 10):
         #     batch_ids = record_ids[i:i + 10]
         #     try:
@@ -164,11 +201,36 @@ def fetch_and_update_data():
         #         print(f"Failed to delete records {batch_ids}: {e}")
 
         # Prepare desired fields for insertion
-        desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'description',
-                          'location', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp']
 
-        send_to_airtable_if_new(df, airtable_new, unique_field='linkedinProfileUrl')
-        send_to_airtable_if_new(filtered_df, airtable_new1, unique_field='linkedinProfileUrl', desired_fields=desired_fields)
+        #         all_records = airtable_instance.get_all()
+
+        """
+        #     Adds a `uniqueId` field to all records in the Airtable table by combining `linkedinProfileUrl` and `email`.
+        #     """
+
+        # for record in all_records:
+        #     record_id = record['id']
+        #     fields = record.get('fields', {})
+        
+        # Create uniqueId column by combining 'linkedinProfileUrl' and 'email'
+        df['uniqueId'] = df['linkedinProfileUrl'].fillna("Unknown") + "_" + df['email'].fillna("Unknown")       
+        # # Update the df with the new `uniqueId`
+        # airtable_instance.update(record_id, {'uniqueId': uniqueId})
+
+        # # Add unique_id to all records in the old Airtable table
+        # add_unique_id_to_airtable(airtable_new)
+        # add_unique_id_to_airtable(airtable_new1)
+
+        # Save full data to a CSV file
+        df.to_csv('full_cleaned_data.csv', index=False)
+
+        # Save filtered data to a CSV file
+        filtered_df.to_csv('filtered_cleaned_data.csv', index=False)
+        desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'description',
+                          'location', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp', 'uniqueId']
+
+        send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
+        send_to_airtable_if_new(filtered_df, airtable_new1, unique_field='uniqueId', desired_fields=desired_fields)
 
         return jsonify({"message": "Data cleaned, updated, and old records processed successfully."})
 
