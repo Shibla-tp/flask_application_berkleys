@@ -196,11 +196,11 @@ def fetch_and_update_data():
 
         #         all_records = airtable_instance.get_all()
 
-        # Extract and impute location from companyLinkedInUrl
-        if 'location' in df.columns and 'companyLinkedInUrl' in df.columns:
-            df['extracted_location'] = df['companyLinkedInUrl'].apply(extract_location_from_url)
-            df['location'] = df['location'].combine_first(df['extracted_location'])
-            df.drop(columns=['extracted_location'], inplace=True)
+        # # Extract and impute location from companyLinkedInUrl
+        # if 'location' in df.columns and 'companyLinkedInUrl' in df.columns:
+        #     df['extracted_location'] = df['companyLinkedInUrl'].apply(extract_location_from_url)
+        #     df['location'] = df['location'].combine_first(df['extracted_location'])
+        #     df.drop(columns=['extracted_location'], inplace=True)
 
         # Fill remaining missing values in location
         df['location'].fillna("Unknown", inplace=True)
