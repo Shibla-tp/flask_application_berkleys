@@ -3,6 +3,7 @@ from airtable import Airtable
 import pandas as pd
 import numpy as np
 import os
+import pycountry
 
 app = Flask(__name__)
 
@@ -12,12 +13,12 @@ API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53e
 TABLE_NAME_OLD = 'linkedin_profile_data'
 
 # New Airtable Configuration
-# BASE_ID_NEW = 'appTEXhgxahKgWLgx'
-BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
+BASE_ID_NEW = 'appTEXhgxahKgWLgx'
+# BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'cleaned_profile_data'
 TABLE_NAME_NEW1 = 'campaign_input'
-API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
-# API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
+# API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
+API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
 #'AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
 
 airtable_old = Airtable(BASE_ID_OLD, TABLE_NAME_OLD, API_KEY)
@@ -95,35 +96,26 @@ def expand_emails(df):
                 rows.append(new_row)
     return pd.DataFrame(rows)
 
-# def add_unique_id_to_airtable(airtable_instance):
-#     """
-#     Adds a `uniqueId` field to all records in the Airtable table by combining `linkedinProfileUrl` and `email`.
-#     """
-#     try:
-#         all_records = airtable_instance.get_all()
+def extract_country(location):
+    """
+    Dynamically extracts the country name from a location string using pycountry.
+    """
+    if not location or location.lower() == "unknown":
+        return "Unknown"
 
-#         for record in all_records:
-#             record_id = record['id']
-#             fields = record.get('fields', {})
-            
-#             # Get values for `linkedinProfileUrl` and `email`
-#             linkedin_profile = fields.get('linkedinProfileUrl', '').strip()
-#             email = fields.get('email', '').strip()
+    # Normalize the location string for matching
+    location = location.lower()
+    
+    # Iterate through all country names in pycountry
+    for country in pycountry.countries:
+        if country.name.lower() in location:
+            return country.name
+        
+        # Check alternate names like "United States of America" (official_name)
+        if hasattr(country, 'official_name') and country.official_name.lower() in location:
+            return country.name
 
-#             # Generate unique_id
-#             if linkedin_profile and email:
-#                 uniqueId = f"{linkedin_profile}_{email}"
-#             elif linkedin_profile:
-#                 uniqueId = linkedin_profile
-#             else:
-#                 uniqueId = "Unknown"
-
-#             # Update the record with the new `uniqueId`
-#             airtable_instance.update(record_id, {'uniqueId': uniqueId})
-#             print(f"Updated record {record_id} with uniqueId: {uniqueId}")
-
-#     except Exception as e:
-#         print(f"Error updating Airtable records: {e}")
+    return "Unknown"
 
 
 @app.route("/", methods=["GET"])
@@ -204,30 +196,29 @@ def fetch_and_update_data():
 
         #         all_records = airtable_instance.get_all()
 
-        """
-        #     Adds a `uniqueId` field to all records in the Airtable table by combining `linkedinProfileUrl` and `email`.
-        #     """
+        # Extract and impute location from companyLinkedInUrl
+        if 'location' in df.columns and 'companyLinkedInUrl' in df.columns:
+            df['extracted_location'] = df['companyLinkedInUrl'].apply(extract_location_from_url)
+            df['location'] = df['location'].combine_first(df['extracted_location'])
+            df.drop(columns=['extracted_location'], inplace=True)
 
-        # for record in all_records:
-        #     record_id = record['id']
-        #     fields = record.get('fields', {})
+        # Fill remaining missing values in location
+        df['location'].fillna("Unknown", inplace=True)
+
         
         # Create uniqueId column by combining 'linkedinProfileUrl' and 'email'
-        df['uniqueId'] = df['linkedinProfileUrl'].fillna("Unknown") + "_" + df['email'].fillna("Unknown")       
-        # # Update the df with the new `uniqueId`
-        # airtable_instance.update(record_id, {'uniqueId': uniqueId})
-
-        # # Add unique_id to all records in the old Airtable table
-        # add_unique_id_to_airtable(airtable_new)
-        # add_unique_id_to_airtable(airtable_new1)
-
+        df['uniqueId'] = df['linkedinProfileUrl'].fillna("Unknown") + "_" + df['email'].fillna("Unknown")   
+        #create country column from location
+        if 'location' in df.columns:
+            df['country'] = df['location'].apply(extract_country)    
+        
         # Save full data to a CSV file
         df.to_csv('full_cleaned_data.csv', index=False)
 
         # Save filtered data to a CSV file
         filtered_df.to_csv('filtered_cleaned_data.csv', index=False)
         desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'description',
-                          'location', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp', 'uniqueId']
+                          'location', 'country', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp', 'uniqueId']
 
         send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
         send_to_airtable_if_new(filtered_df, airtable_new1, unique_field='uniqueId', desired_fields=desired_fields)
@@ -240,3 +231,4 @@ def fetch_and_update_data():
 
 if __name__ == "__main__":
     app.run(debug=True)
+
