@@ -10,7 +10,7 @@ app = Flask(__name__)
 # Old Airtable Configuration
 BASE_ID_OLD = 'app5s8zl7DsUaDmtx'
 API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3'  # Replace with a secure method to fetch the key
-TABLE_NAME_OLD = 'linkedin_profile_data'
+TABLE_NAME_OLD = 'linkedin_profile_apollo'
 
 # New Airtable Configuration
 # BASE_ID_NEW = 'appTEXhgxahKgWLgx'
@@ -117,6 +117,64 @@ def extract_country(location):
 
     return "Unknown"
 
+def extract_location_from_linkedin(url):
+    """
+    Extract location-related information from the LinkedIn URL.
+    Example: 'https://www.linkedin.com/company/example-company-location-dubai' -> 'Dubai'
+    """
+    import re
+    if not url or url.lower() == "unknown":
+        return "Unknown"
+    
+    # Adjust regex to find location keywords (e.g., after "company")
+    match = re.search(r'company/.*?-([a-zA-Z]+[-\s]?[a-zA-Z]*)$', url)
+    if match:
+        location = match.group(1).replace('-', ' ').title()
+        return location
+    return "Unknown"
+
+
+def impute_location(df):
+    """
+    Impute missing location values using multiple methods, including LinkedIn URLs and predefined mappings.
+    """
+    import re
+    
+    def extract_location_from_linkedin(url):
+        if not url or url.lower() == "unknown":
+            return "Unknown"
+        match = re.search(r'company/.*?-([a-zA-Z]+[-\s]?[a-zA-Z]*)$', url)
+        if match:
+            location = match.group(1).replace('-', ' ').title()
+            return location
+        return "Unknown"
+    
+    # Add extracted location column
+    if 'location' in df.columns and 'companyLinkedInUrl' in df.columns:
+        df['extracted_location'] = df['companyLinkedInUrl'].apply(extract_location_from_linkedin)
+    
+    # Mapping of company names to default locations
+    location_map = {
+        'Example Company': 'Dubai',
+        'Tech Innovators': 'Abu Dhabi'
+    }
+    
+    # Impute location
+    df['location'] = df.apply(
+        lambda row: row['location']
+        if row['location'] != "Unknown"
+        else row['extracted_location']
+        if 'extracted_location' in row and row['extracted_location'] != "Unknown"
+        else location_map.get(row['company'], "Unknown"),
+        axis=1
+    )
+    
+    # Drop helper columns
+    if 'extracted_location' in df.columns:
+        df.drop(columns=['extracted_location'], inplace=True)
+    
+    return df
+
 
 @app.route("/", methods=["GET"])
 def fetch_and_update_data():
@@ -174,23 +232,37 @@ def fetch_and_update_data():
             df['companyWebsite'] = df.apply(
                 lambda row: clean_company_website(row['companyWebsite'], row.name), axis=1
             )
+        unknown_count = df['location'].str.lower().str.strip().eq('unknown').sum()
+        print(f"Number of 'Unknown' values in the 'location' column: {unknown_count}")
+
+        #create country column from location
+        if 'location' in df.columns:
+            df['country'] = df['location'].apply(extract_country)
+
+        unknown_count1 = df['location'].str.lower().str.strip().eq('unknown').sum()
+        print(f"Number of 'Unknown' values in the 'location' column after the function exreact_country: {unknown_count1}")
+
+
+        # Impute location using LinkedIn URL
+        df = impute_location(df)
+
+        unknown_count2 = df['location'].str.lower().str.strip().eq('unknown').sum()
+        print(f"Number of 'Unknown' values in the 'location' column after imputation: {unknown_count2}")
+
 
         # Duplicate rows for each email
         df = expand_emails(df)
+        
+        # Create uniqueId column by combining 'linkedinProfileUrl' and 'email'
+        df['uniqueId'] = df['linkedinProfileUrl'].fillna("Unknown") + "_" + df['email'].fillna("Unknown")   
+         
+            
 
         # Drop duplicates based on 'linkedinProfileUrl' and 'email'
         df = df.drop_duplicates(subset=['linkedinProfileUrl', 'email'])
 
         # Filter records with email not equal to "Unknown"
         filtered_df = df[df['email'] != "Unknown"]
-
-        # for i in range(0, len(record_ids), 10):
-        #     batch_ids = record_ids[i:i + 10]
-        #     try:
-        #         airtable_old.batch_delete(batch_ids)
-        #         print(f"Deleted records: {batch_ids}")
-        #     except Exception as e:
-        #         print(f"Failed to delete records {batch_ids}: {e}")
 
         # Prepare desired fields for insertion
 
@@ -199,16 +271,17 @@ def fetch_and_update_data():
         """
         #     Adds a `uniqueId` field to all records in the Airtable table by combining `linkedinProfileUrl` and `email`.
         #     """
-
-        # for record in all_records:
-        #     record_id = record['id']
-        #     fields = record.get('fields', {})
+    
         
-        # Create uniqueId column by combining 'linkedinProfileUrl' and 'email'
-        df['uniqueId'] = df['linkedinProfileUrl'].fillna("Unknown") + "_" + df['email'].fillna("Unknown")   
-        #create country column from location
-        if 'location' in df.columns:
-            df['country'] = df['location'].apply(extract_country)    
+        
+        # for i in range(0, len(record_ids), 10):
+        #     batch_ids = record_ids[i:i + 10]
+        #     try:
+        #         airtable_old.batch_delete(batch_ids)
+        #         print(f"Deleted records: {batch_ids}")
+        #     except Exception as e:
+        #         print(f"Failed to delete records {batch_ids}: {e}")
+   
         
         # Save full data to a CSV file
         df.to_csv('full_cleaned_data.csv', index=False)
