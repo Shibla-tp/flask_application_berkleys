@@ -4,6 +4,9 @@ import pandas as pd
 import numpy as np
 import os
 import pycountry
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 
 app = Flask(__name__)
 
@@ -16,7 +19,7 @@ TABLE_NAME_OLD = 'linkedin_profile_apollo'
 # BASE_ID_NEW = 'appTEXhgxahKgWLgx'
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'cleaned_profile_data'
-TABLE_NAME_NEW1 = 'campaign_input'
+TABLE_NAME_NEW1 = 'outreach_data'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
 # API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
 #'AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
@@ -38,7 +41,7 @@ def record_exists_in_airtable(airtable_instance, record_data, unique_field):
     return len(search_result) > 0
 
 
-def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None):
+def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None):
     """
     Inserts records into Airtable if they are not already present, based on a unique identifier.
     Handles duplicate linkedinProfileUrl with different emails by considering them as separate records.
@@ -60,6 +63,14 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
         # Update the df with the new `uniqueId`
         # airtable_instance.update(i , {'uniqueId': uniqueId})
 
+        # Apply field name mapping (if provided)
+        if field_mapping:
+            record_data = {field_mapping.get(k, k): v for k, v in record_data.items()}
+
+        # Merge default values for other fields
+        if default_values:
+            for key, default_value in default_values.items():
+                record_data.setdefault(key, default_value)
 
         if not record_exists_in_airtable(airtable_instance, {"uniqueId": uniqueId}, "uniqueId"):
             try:
@@ -69,6 +80,7 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
                 print(f"Failed to insert record {i}: {e}")
         else:
             print(f"Record {i} already exists in Airtable. Skipping insertion.")
+
 
 def process_email(email):
     """
@@ -288,11 +300,55 @@ def fetch_and_update_data():
 
         # Save filtered data to a CSV file
         filtered_df.to_csv('filtered_cleaned_data.csv', index=False)
-        desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'description',
-                          'location', 'country', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp', 'uniqueId']
-
-        send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
-        send_to_airtable_if_new(filtered_df, airtable_new1, unique_field='uniqueId', desired_fields=desired_fields)
+        # desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'description',
+        #                   'location', 'country', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp', 'uniqueId']
+        # Define field mapping for campaign_input
+        campaign_field_mapping = {
+            "firstName": "RecipientFirstName",
+            "lastName": "RecipientLastName",
+            "email": "RecipientEmail",
+            "company": "RecipientCompany",
+            # "location": "RecipientLocation",
+            "headline": "RecipientRole",
+            "companyWebsite": "RecipientCompanyWebsite",
+            "allSkills": "RecipientBio"
+            # Add other mappings as needed
+        }
+        # Default values for additional fields in campaign_input
+        default_values_campaign = {
+            "SenderName": "Mohammed Fawaz",
+            "SenderTitle": "Sales Rep",
+            "SenderCompany": "TAIPPA",
+            "SenderEmail": "mohammed@taippa.com",
+            "SenderCompanyWebsite": "www.taippa.com ",
+            "KeyBenefits" : "Automates personalized email outreach at scale, Saves time for sales and marketing teams.,Increases open and reply rates through advanced AI-driven personalization.",
+            "UniqueFeatures" : "AI-powered email personalization based on client data and behavior. Seamless integration with existing CRM systems. Comprehensive analytics for tracking campaign performance.",
+            "ImpactMetrics" : "Helped an e-commerce client increase email open rates by 45% within three months. Reduced outreach time for a mid-sized SaaS company by 15 hours per week.",
+            "CtaOptions" : "Schedule a quick 15-minute call to discuss how we can help GrowthTech Solutions scale personalized email outreach. At https://taippa.com/contact/ ",
+            "ColorScheme" : "#000000,#ffffff,#b366cf,#6834cb",
+            "Fonts" : " Headlines: Anton Body: Poppins"
+        }
+                              
+   
+        # send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
+        send_to_airtable_if_new(
+            filtered_df,
+            airtable_new1,
+            unique_field="uniqueId",
+            desired_fields=[
+                "linkedinProfileUrl",
+                "firstName",
+                "lastName",
+                "email",
+                "company",
+                "headline",
+                "companyWebsite",
+                "allSkills",
+                "uniqueId"
+                            ],
+            field_mapping=campaign_field_mapping,
+            default_values=default_values_campaign  
+        )
 
         return jsonify({"message": "Data cleaned, updated, and old records processed successfully."})
 
@@ -300,6 +356,57 @@ def fetch_and_update_data():
         return jsonify({"error": f"Error fetching, processing, or deleting data: {e}"}), 500
 
 
+@app.route("/data_analysis", methods=["GET"])
+def data_analysis():
+    try:
+        # Fetch data from the Airtable cleaned_profile_data table
+        all_records = airtable_new.get_all()
+        data = [record.get('fields', {}) for record in all_records]
+
+        if not data:
+            return jsonify({"message": "No data found in the cleaned_profile_data Airtable table."})
+
+        # Load data into a pandas DataFrame
+        df = pd.DataFrame(data)
+
+        # Collect diagnostic information
+        diagnostics = {
+            "dataset_shape": df.shape,
+            "columns": df.columns.tolist(),
+            "data_types": df.dtypes.astype(str).to_dict(),
+            "missing_values": df.isnull().sum().to_dict(),
+            "missing_percentage": ((df.isnull().sum() / len(df)) * 100).to_dict(),
+            "sample_data": df.head().to_dict(orient='records'),
+        }
+
+        # Perform basic data analysis
+        analysis = {}
+
+        # Summary statistics for numerical columns
+        numerical_columns = df.select_dtypes(include=["number"])
+        if not numerical_columns.empty:
+            analysis["numerical_summary"] = numerical_columns.describe().to_dict()
+
+        # Unique value counts for categorical columns
+        categorical_columns = df.select_dtypes(include=["object"])
+        if not categorical_columns.empty:
+            analysis["unique_value_counts"] = {
+                col: df[col].nunique() for col in categorical_columns.columns
+            }
+
+        # Combine diagnostics and analysis
+        response = {
+            "diagnostics": diagnostics,
+            "analysis": analysis,
+        }
+
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({"error": f"Error performing data analysis: {e}"}), 500
+
+
 if __name__ == "__main__":
     app.run(debug=True)
+
 
