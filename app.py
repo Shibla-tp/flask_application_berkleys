@@ -206,7 +206,7 @@ def fetch_and_update_data():
         df = df.where(pd.notnull(df), None)
 
         for column in df.select_dtypes(include=['object']).columns:
-            df[column].fillna("Unknown", inplace=True)
+            df[column] = df[column].fillna("Unknown")
 
         if 'phoneNumber' in df.columns:
             def clean_phone_number(x):
