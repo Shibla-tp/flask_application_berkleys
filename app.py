@@ -330,7 +330,7 @@ def fetch_and_update_data():
         }
                               
    
-        # send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
+        send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
         send_to_airtable_if_new(
             filtered_df,
             airtable_new1,
