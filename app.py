@@ -16,17 +16,24 @@ API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53e
 TABLE_NAME_OLD = 'linkedin_profile_apollo'
 
 # New Airtable Configuration
-# BASE_ID_NEW = 'appTEXhgxahKgWLgx'
+# BASE_ID_NEW1 = 'appTEXhgxahKgWLgx'
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'cleaned_profile_data'
 TABLE_NAME_NEW1 = 'outreach_data'
+TABLE_NAME_NEW2 = 'ICP_information'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
-# API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
-#'AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
+# API_KEY_NEW1 = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
+# API_KEY_NEW1 = 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
+
 
 airtable_old = Airtable(BASE_ID_OLD, TABLE_NAME_OLD, API_KEY)
 airtable_new = Airtable(BASE_ID_NEW, TABLE_NAME_NEW, API_KEY_NEW)
 airtable_new1 = Airtable(BASE_ID_NEW, TABLE_NAME_NEW1, API_KEY_NEW)
+try:
+    airtable_new2 = Airtable(BASE_ID_NEW, TABLE_NAME_NEW2, API_KEY_NEW)
+except Exception as e:
+    print(f"Error initializing Airtable: {e}")
+
 
 def record_exists_in_airtable(airtable_instance, record_data, unique_field):
     """
@@ -41,11 +48,62 @@ def record_exists_in_airtable(airtable_instance, record_data, unique_field):
     return len(search_result) > 0
 
 
-def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None):
-    """
-    Inserts records into Airtable if they are not already present, based on a unique identifier.
-    Handles duplicate linkedinProfileUrl with different emails by considering them as separate records.
-    """
+# def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None):
+#     """
+#     Inserts records into Airtable if they are not already present, based on a unique identifier.
+#     Handles duplicate linkedinProfileUrl with different emails by considering them as separate records.
+#     """
+   
+#     for i, row in df.iterrows():
+#         record_data = row.dropna().to_dict()
+#         if desired_fields:
+#             record_data = {field: row[field] for field in desired_fields if field in row and not pd.isna(row[field])}
+
+#         # Ensure 'createdTime' is not part of the record
+#         if "createdTime" in record_data:
+#             del record_data["createdTime"]
+
+#         # Generate the uniqueId locally
+#         uniqueId = f"{record_data.get('linkedinProfileUrl', '')}_{record_data.get('email', '')}"
+#         record_data["uniqueId"] = uniqueId
+      
+        
+#         # Update the df with the new `uniqueId`
+#         # airtable_instance.update(i , {'uniqueId': uniqueId})
+
+#         # Apply field name mapping (if provided)
+#         if field_mapping:
+#             record_data = {field_mapping.get(k, k): v for k, v in record_data.items()}
+
+#         # Merge default values for other fields
+#         if default_values:
+#             for key, default_value in default_values.items():
+#                 record_data.setdefault(key, default_value)
+
+
+#         if icp_to_outreach:
+#             for key, value in icp_to_outreach.items():
+#                 record_data.setdefault(key,value)
+                
+#         # Apply icp_to_outreach_mapping to populate the specific fields
+#         # for outreach_field, icp_field in icp_to_outreach.items():
+#         #     # Map the `email` and `companyName` values to `SenderEmail` and `SenderCompany`
+#         #     if icp_field == "email":
+#         #         record_data[outreach_field] = record_data.get("email", "")
+#         #     elif icp_field == "companyName":
+#         #         record_data[outreach_field] = record_data.get("companyName", "")
+
+
+#         if not record_exists_in_airtable(airtable_instance, {"uniqueId": uniqueId}, "uniqueId"):
+#             try:
+#                 airtable_instance.insert(record_data)
+#                 print(f"Record {i} inserted successfully.")
+#             except Exception as e:
+#                 print(f"Failed to insert record {i}: {e}")
+#         else:
+#             print(f"Record {i} already exists in Airtable. Skipping insertion.")
+
+def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
     for i, row in df.iterrows():
         record_data = row.dropna().to_dict()
         if desired_fields:
@@ -58,10 +116,6 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
         # Generate the uniqueId locally
         uniqueId = f"{record_data.get('linkedinProfileUrl', '')}_{record_data.get('email', '')}"
         record_data["uniqueId"] = uniqueId
-      
-        
-        # Update the df with the new `uniqueId`
-        # airtable_instance.update(i , {'uniqueId': uniqueId})
 
         # Apply field name mapping (if provided)
         if field_mapping:
@@ -72,6 +126,13 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
             for key, default_value in default_values.items():
                 record_data.setdefault(key, default_value)
 
+        # Apply ICP-to-outreach mapping to populate the specific fields
+        if icp_to_outreach:
+            for outreach_field, icp_field in icp_to_outreach.items():
+                if icp_field in icp_df.columns:  # Ensure the column exists in icp_df
+                    record_data[outreach_field] = icp_df.loc[0, icp_field]  # Use the first row of icp_df for the mapping
+
+        # Insert the record if it does not already exist
         if not record_exists_in_airtable(airtable_instance, {"uniqueId": uniqueId}, "uniqueId"):
             try:
                 airtable_instance.insert(record_data)
@@ -80,6 +141,7 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
                 print(f"Failed to insert record {i}: {e}")
         else:
             print(f"Record {i} already exists in Airtable. Skipping insertion.")
+
 
 
 def process_email(email):
@@ -186,6 +248,8 @@ def impute_location(df):
         df.drop(columns=['extracted_location'], inplace=True)
     
     return df
+
+
 
 
 @app.route("/", methods=["GET"])
@@ -300,9 +364,8 @@ def fetch_and_update_data():
 
         # Save filtered data to a CSV file
         filtered_df.to_csv('filtered_cleaned_data.csv', index=False)
-        # desired_fields = ['linkedinProfileUrl', 'firstName', 'lastName', 'email', 'Company', 'headline', 'description',
-        #                   'location', 'country', 'imgUrl', 'fullName', 'phoneNumber', 'company', 'companyWebsite', 'timestamp', 'uniqueId']
-        # Define field mapping for campaign_input
+        
+        # Fetch the record from ICP_information based on the email
         campaign_field_mapping = {
             "firstName": "RecipientFirstName",
             "lastName": "RecipientLastName",
@@ -314,23 +377,52 @@ def fetch_and_update_data():
             "allSkills": "RecipientBio"
             # Add other mappings as needed
         }
-        # Default values for additional fields in campaign_input
+       
+
+       
+           
+
         default_values_campaign = {
-            "SenderName": "Mohammed Fawaz",
-            "SenderTitle": "Sales Rep",
-            "SenderCompany": "TAIPPA",
-            "SenderEmail": "mohammed@taippa.com",
-            "SenderCompanyWebsite": "www.taippa.com ",
-            "KeyBenefits" : "Automates personalized email outreach at scale, Saves time for sales and marketing teams.,Increases open and reply rates through advanced AI-driven personalization.",
-            "UniqueFeatures" : "AI-powered email personalization based on client data and behavior. Seamless integration with existing CRM systems. Comprehensive analytics for tracking campaign performance.",
-            "ImpactMetrics" : "Helped an e-commerce client increase email open rates by 45% within three months. Reduced outreach time for a mid-sized SaaS company by 15 hours per week.",
+            # "SenderName": "Mohammed Fawaz",
+            # "SenderTitle": "Sales Rep",
+            # "SenderCompany": "TAIPPA",
+            # "SenderEmail": "mohammed@taippa.com",
+            # "SenderCompanyWebsite": "www.taippa.com ",
+            # "KeyBenefits" : "Automates personalized email outreach at scale, Saves time for sales and marketing teams.,Increases open and reply rates through advanced AI-driven personalization.",
+            # "UniqueFeatures" : "AI-powered email personalization based on client data and behavior. Seamless integration with existing CRM systems. Comprehensive analytics for tracking campaign performance.",
+            # "ImpactMetrics" : "Helped an e-commerce client increase email open rates by 45% within three months. Reduced outreach time for a mid-sized SaaS company by 15 hours per week.",
             "CtaOptions" : "Schedule a quick 15-minute call to discuss how we can help GrowthTech Solutions scale personalized email outreach. At https://taippa.com/contact/ ",
             "ColorScheme" : "#000000,#ffffff,#b366cf,#6834cb",
             "Fonts" : " Headlines: Anton Body: Poppins"
         }
-                              
-   
-        send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
+       
+        email = "mohammed@taippa.com"
+        icp_records = airtable_new2.search('email', email)
+
+        if not icp_records:
+            return jsonify({"error": f"No record found in ICP_information for email: {email}"}), 404
+
+        # Extract fields from the first record
+        icp_data = icp_records[0]['fields']  # Assuming first match is sufficient
+
+        # Convert icp_data dictionary to a DataFrame
+        icp_df = pd.DataFrame([icp_data])  # Wrap icp_data in a list to create a single-row DataFrame
+        print("Fetched ICP Data as DataFrame:")
+        print(icp_df)
+
+        # Define field mapping for outreach_data
+        icp_to_outreach_mapping = {
+            "SenderEmail": "email",
+            "SenderCompany": "companyName",
+            "SenderName": "fullName",
+            "SenderTitle": "jobtitle",
+            "SenderCompanyWebsite": "companyWebsite",
+            "KeyBenefits" : "solutionBenefits",            
+            "ImpactMetrics" : "solutionImpactExamples",
+            "UniqueFeatures" : "uniqueFeatures",
+        }
+
+    
         send_to_airtable_if_new(
             filtered_df,
             airtable_new1,
@@ -345,10 +437,13 @@ def fetch_and_update_data():
                 "companyWebsite",
                 "allSkills",
                 "uniqueId"
-                            ],
+            ],
             field_mapping=campaign_field_mapping,
-            default_values=default_values_campaign  
+            icp_to_outreach=icp_to_outreach_mapping,
+            default_values=default_values_campaign,
+            icp_df=icp_df
         )
+        
 
         return jsonify({"message": "Data cleaned, updated, and old records processed successfully."})
 
