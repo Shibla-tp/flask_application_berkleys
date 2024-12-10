@@ -383,14 +383,6 @@ def fetch_and_update_data():
            
 
         default_values_campaign = {
-            # "SenderName": "Mohammed Fawaz",
-            # "SenderTitle": "Sales Rep",
-            # "SenderCompany": "TAIPPA",
-            # "SenderEmail": "mohammed@taippa.com",
-            # "SenderCompanyWebsite": "www.taippa.com ",
-            # "KeyBenefits" : "Automates personalized email outreach at scale, Saves time for sales and marketing teams.,Increases open and reply rates through advanced AI-driven personalization.",
-            # "UniqueFeatures" : "AI-powered email personalization based on client data and behavior. Seamless integration with existing CRM systems. Comprehensive analytics for tracking campaign performance.",
-            # "ImpactMetrics" : "Helped an e-commerce client increase email open rates by 45% within three months. Reduced outreach time for a mid-sized SaaS company by 15 hours per week.",
             "CtaOptions" : "Schedule a quick 15-minute call to discuss how we can help GrowthTech Solutions scale personalized email outreach. At https://taippa.com/contact/ ",
             "ColorScheme" : "#000000,#ffffff,#b366cf,#6834cb",
             "Fonts" : " Headlines: Anton Body: Poppins"
