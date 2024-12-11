@@ -6,6 +6,7 @@ import os
 import pycountry
 import matplotlib.pyplot as plt
 import seaborn as sns
+import re
 
 
 app = Flask(__name__)
@@ -19,7 +20,7 @@ TABLE_NAME_OLD = 'berkleyshomes_apollo'
 # BASE_ID_NEW1 = 'appTEXhgxahKgWLgx'
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'cleaned_profile_data_apollo'
-TABLE_NAME_NEW1 = 'outreach_data'
+TABLE_NAME_NEW1 = 'outreach_data_copy'
 TABLE_NAME_NEW2 = 'ICP_information'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
 # API_KEY_NEW1 = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
@@ -194,7 +195,29 @@ def expand_emails(df):
 #         df.drop(columns=['extracted_location'], inplace=True)
     
 #     return df
+# def clean_and_validate_names(df):
+#     """
+#     Cleans and validates the names in the input data.
 
+#     Args:
+#         data (dict): Dictionary containing 'first_name', 'last_name', and 'name' keys.
+
+#     Returns:
+#         dict: Cleaned and validated data with a validation status.
+#     """
+#     cleaned_data = {}
+#     # validation_status = {"status": "success", "errors": []}
+    
+#     # Clean 'first_name'
+#     # if 'first_name' in data:
+#     #     cleaned_data['first_name'] = data['first_name'].strip().capitalize()
+#     df['first_name'] = df['first_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
+#     # Clean 'last_name'
+#     # if 'last_name' in data:
+#     #     cleaned_data['last_name'] = data['last_name'].strip().capitalize()
+    
+
+#     return pd.DataFrame(cleaned_data)
 
 
 
@@ -217,6 +240,62 @@ def fetch_and_update_data():
 
         for column in df.select_dtypes(include=['object']).columns:
             df[column] = df[column].fillna("Unknown")
+        # Clean 'first_name'
+        df['first_name'] = df['first_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
+        # Clean 'last_name'
+        df['last_name'] = df['last_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
+         # Clean 'email'
+        if 'email' in df.columns:
+            df['email'] = (
+                df['email']
+                .astype(str)
+                .str.lower()
+                .str.strip()
+                .apply(lambda x: process_email(x))
+            )
+        
+        #clean linkedin_url
+        if 'linkedin_url' in df.columns:
+            def clean_company_website(url, unique_id):
+                if pd.isna(url) or not str(url).strip() or url.lower() in ["unknown", "n/a"]:
+                    return f"https://unknown-company-{unique_id}.com"
+                url = url.strip()
+                if not url.startswith(("http://", "https://")):
+                    url = "https://" + url
+                return url
+
+            df['linkedin_url'] = df.apply(
+                lambda row: clean_company_website(row['linkedin_url'], row.name), axis=1
+            )
+
+        # Function to clean the headline
+        if 'headline' in df.columns:
+            def clean_headline(headline):
+                if pd.isna(headline):
+                    return headline
+                
+                # Standardize capitalization (title case)
+                headline = str(headline).strip().title()
+                
+                # Remove special characters and symbols (e.g., "|", ":", etc.)
+                headline = re.sub(r'[^\w\s.,-]', '', headline)
+                
+                # Remove redundant or irrelevant phrases (you can adjust this list based on your needs)
+                redundant_phrases = [
+                    'notable experiences', 'luxury international brands', 'in mena', 'in international markets'
+                ]
+                for phrase in redundant_phrases:
+                    headline = headline.replace(phrase, '')
+                
+                # Remove pipe symbols and extra spaces
+                headline = headline.replace('|', ',')
+                headline = ' '.join(headline.split())  # Strip extra spaces
+                
+                return headline
+
+            # Apply cleaning function to the "headline" column
+            df['headline'] = df['headline'].apply(clean_headline)
+
 
         if 'organization_phone' in df.columns:
             def clean_phone_number(x):
@@ -233,15 +312,9 @@ def fetch_and_update_data():
 
             df['organization_phone'] = df['organization_phone'].apply(clean_phone_number)
 
-        if 'email' in df.columns:
-            df['email'] = (
-                df['email']
-                .astype(str)
-                .str.lower()
-                .str.strip()
-                .apply(lambda x: process_email(x))
-            )
 
+      
+        
         if 'organization_website' in df.columns:
             def clean_company_website(url, unique_id):
                 if pd.isna(url) or not str(url).strip() or url.lower() in ["unknown", "n/a"]:
