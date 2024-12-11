@@ -13,12 +13,12 @@ app = Flask(__name__)
 # Old Airtable Configuration
 BASE_ID_OLD = 'app5s8zl7DsUaDmtx'
 API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3'  # Replace with a secure method to fetch the key
-TABLE_NAME_OLD = 'linkedin_profile_apollo'
+TABLE_NAME_OLD = 'berkleyshomes_apollo'
 
 # New Airtable Configuration
 # BASE_ID_NEW1 = 'appTEXhgxahKgWLgx'
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
-TABLE_NAME_NEW = 'cleaned_profile_data'
+TABLE_NAME_NEW = 'cleaned_profile_data_apollo'
 TABLE_NAME_NEW1 = 'outreach_data'
 TABLE_NAME_NEW2 = 'ICP_information'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
@@ -48,60 +48,6 @@ def record_exists_in_airtable(airtable_instance, record_data, unique_field):
     return len(search_result) > 0
 
 
-# def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None):
-#     """
-#     Inserts records into Airtable if they are not already present, based on a unique identifier.
-#     Handles duplicate linkedinProfileUrl with different emails by considering them as separate records.
-#     """
-   
-#     for i, row in df.iterrows():
-#         record_data = row.dropna().to_dict()
-#         if desired_fields:
-#             record_data = {field: row[field] for field in desired_fields if field in row and not pd.isna(row[field])}
-
-#         # Ensure 'createdTime' is not part of the record
-#         if "createdTime" in record_data:
-#             del record_data["createdTime"]
-
-#         # Generate the uniqueId locally
-#         uniqueId = f"{record_data.get('linkedinProfileUrl', '')}_{record_data.get('email', '')}"
-#         record_data["uniqueId"] = uniqueId
-      
-        
-#         # Update the df with the new `uniqueId`
-#         # airtable_instance.update(i , {'uniqueId': uniqueId})
-
-#         # Apply field name mapping (if provided)
-#         if field_mapping:
-#             record_data = {field_mapping.get(k, k): v for k, v in record_data.items()}
-
-#         # Merge default values for other fields
-#         if default_values:
-#             for key, default_value in default_values.items():
-#                 record_data.setdefault(key, default_value)
-
-
-#         if icp_to_outreach:
-#             for key, value in icp_to_outreach.items():
-#                 record_data.setdefault(key,value)
-                
-#         # Apply icp_to_outreach_mapping to populate the specific fields
-#         # for outreach_field, icp_field in icp_to_outreach.items():
-#         #     # Map the `email` and `companyName` values to `SenderEmail` and `SenderCompany`
-#         #     if icp_field == "email":
-#         #         record_data[outreach_field] = record_data.get("email", "")
-#         #     elif icp_field == "companyName":
-#         #         record_data[outreach_field] = record_data.get("companyName", "")
-
-
-#         if not record_exists_in_airtable(airtable_instance, {"uniqueId": uniqueId}, "uniqueId"):
-#             try:
-#                 airtable_instance.insert(record_data)
-#                 print(f"Record {i} inserted successfully.")
-#             except Exception as e:
-#                 print(f"Failed to insert record {i}: {e}")
-#         else:
-#             print(f"Record {i} already exists in Airtable. Skipping insertion.")
 
 def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
     for i, row in df.iterrows():
@@ -110,11 +56,11 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
             record_data = {field: row[field] for field in desired_fields if field in row and not pd.isna(row[field])}
 
         # Ensure 'createdTime' is not part of the record
-        if "createdTime" in record_data:
-            del record_data["createdTime"]
+        if "created_time" in record_data:
+            del record_data["created_time"]
 
         # Generate the uniqueId locally
-        uniqueId = f"{record_data.get('linkedinProfileUrl', '')}_{record_data.get('email', '')}"
+        uniqueId = f"{record_data.get('id', '')}_{record_data.get('email', '')}"
         record_data["uniqueId"] = uniqueId
 
         # Apply field name mapping (if provided)
@@ -170,84 +116,84 @@ def expand_emails(df):
                 rows.append(new_row)
     return pd.DataFrame(rows)
 
-def extract_country(location):
-    """
-    Dynamically extracts the country name from a location string using pycountry.
-    """
-    if not location or location.lower() == "unknown":
-        return "Unknown"
+# def extract_country(location):
+#     """
+#     Dynamically extracts the country name from a location string using pycountry.
+#     """
+#     if not location or location.lower() == "unknown":
+#         return "Unknown"
 
-    # Normalize the location string for matching
-    location = location.lower()
+#     # Normalize the location string for matching
+#     location = location.lower()
     
-    # Iterate through all country names in pycountry
-    for country in pycountry.countries:
-        if country.name.lower() in location:
-            return country.name
+#     # Iterate through all country names in pycountry
+#     for country in pycountry.countries:
+#         if country.name.lower() in location:
+#             return country.name
         
-        # Check alternate names like "United States of America" (official_name)
-        if hasattr(country, 'official_name') and country.official_name.lower() in location:
-            return country.name
+#         # Check alternate names like "United States of America" (official_name)
+#         if hasattr(country, 'official_name') and country.official_name.lower() in location:
+#             return country.name
 
-    return "Unknown"
+#     return "Unknown"
 
-def extract_location_from_linkedin(url):
-    """
-    Extract location-related information from the LinkedIn URL.
-    Example: 'https://www.linkedin.com/company/example-company-location-dubai' -> 'Dubai'
-    """
-    import re
-    if not url or url.lower() == "unknown":
-        return "Unknown"
+# def extract_location_from_linkedin(url):
+#     """
+#     Extract location-related information from the LinkedIn URL.
+#     Example: 'https://www.linkedin.com/company/example-company-location-dubai' -> 'Dubai'
+#     """
+#     import re
+#     if not url or url.lower() == "unknown":
+#         return "Unknown"
     
-    # Adjust regex to find location keywords (e.g., after "company")
-    match = re.search(r'company/.*?-([a-zA-Z]+[-\s]?[a-zA-Z]*)$', url)
-    if match:
-        location = match.group(1).replace('-', ' ').title()
-        return location
-    return "Unknown"
+#     # Adjust regex to find location keywords (e.g., after "company")
+#     match = re.search(r'company/.*?-([a-zA-Z]+[-\s]?[a-zA-Z]*)$', url)
+#     if match:
+#         location = match.group(1).replace('-', ' ').title()
+#         return location
+#     return "Unknown"
 
 
-def impute_location(df):
-    """
-    Impute missing location values using multiple methods, including LinkedIn URLs and predefined mappings.
-    """
-    import re
+# def impute_location(df):
+#     """
+#     Impute missing location values using multiple methods, including LinkedIn URLs and predefined mappings.
+#     """
+#     import re
     
-    def extract_location_from_linkedin(url):
-        if not url or url.lower() == "unknown":
-            return "Unknown"
-        match = re.search(r'company/.*?-([a-zA-Z]+[-\s]?[a-zA-Z]*)$', url)
-        if match:
-            location = match.group(1).replace('-', ' ').title()
-            return location
-        return "Unknown"
+#     def extract_location_from_linkedin(url):
+#         if not url or url.lower() == "unknown":
+#             return "Unknown"
+#         match = re.search(r'company/.*?-([a-zA-Z]+[-\s]?[a-zA-Z]*)$', url)
+#         if match:
+#             location = match.group(1).replace('-', ' ').title()
+#             return location
+#         return "Unknown"
     
-    # Add extracted location column
-    if 'location' in df.columns and 'companyLinkedInUrl' in df.columns:
-        df['extracted_location'] = df['companyLinkedInUrl'].apply(extract_location_from_linkedin)
+#     # Add extracted location column
+#     if 'location' in df.columns and 'companyLinkedInUrl' in df.columns:
+#         df['extracted_location'] = df['companyLinkedInUrl'].apply(extract_location_from_linkedin)
     
-    # Mapping of company names to default locations
-    location_map = {
-        'Example Company': 'Dubai',
-        'Tech Innovators': 'Abu Dhabi'
-    }
+#     # Mapping of company names to default locations
+#     location_map = {
+#         'Example Company': 'Dubai',
+#         'Tech Innovators': 'Abu Dhabi'
+#     }
     
-    # Impute location
-    df['location'] = df.apply(
-        lambda row: row['location']
-        if row['location'] != "Unknown"
-        else row['extracted_location']
-        if 'extracted_location' in row and row['extracted_location'] != "Unknown"
-        else location_map.get(row['company'], "Unknown"),
-        axis=1
-    )
+#     # Impute location
+#     df['location'] = df.apply(
+#         lambda row: row['location']
+#         if row['location'] != "Unknown"
+#         else row['extracted_location']
+#         if 'extracted_location' in row and row['extracted_location'] != "Unknown"
+#         else location_map.get(row['company'], "Unknown"),
+#         axis=1
+#     )
     
-    # Drop helper columns
-    if 'extracted_location' in df.columns:
-        df.drop(columns=['extracted_location'], inplace=True)
+#     # Drop helper columns
+#     if 'extracted_location' in df.columns:
+#         df.drop(columns=['extracted_location'], inplace=True)
     
-    return df
+#     return df
 
 
 
@@ -264,7 +210,7 @@ def fetch_and_update_data():
             return jsonify({"message": "No data found in the old Airtable."})
 
         df = pd.DataFrame(data)
-
+        df.to_csv("berkleyshomes_apollo.csv", index=False)
         # Replace problematic values
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
         df = df.where(pd.notnull(df), None)
@@ -272,7 +218,7 @@ def fetch_and_update_data():
         for column in df.select_dtypes(include=['object']).columns:
             df[column] = df[column].fillna("Unknown")
 
-        if 'phoneNumber' in df.columns:
+        if 'organization_phone' in df.columns:
             def clean_phone_number(x):
                 if pd.isna(x) or not str(x).strip():
                     return "Unknown"
@@ -285,7 +231,7 @@ def fetch_and_update_data():
                     cleaned_number = ''.join(filter(str.isdigit, x))
                 return cleaned_number if cleaned_number else "Unknown"
 
-            df['phoneNumber'] = df['phoneNumber'].apply(clean_phone_number)
+            df['organization_phone'] = df['organization_phone'].apply(clean_phone_number)
 
         if 'email' in df.columns:
             df['email'] = (
@@ -296,7 +242,7 @@ def fetch_and_update_data():
                 .apply(lambda x: process_email(x))
             )
 
-        if 'companyWebsite' in df.columns:
+        if 'organization_website' in df.columns:
             def clean_company_website(url, unique_id):
                 if pd.isna(url) or not str(url).strip() or url.lower() in ["unknown", "n/a"]:
                     return f"https://unknown-company-{unique_id}.com"
@@ -305,37 +251,37 @@ def fetch_and_update_data():
                     url = "https://" + url
                 return url
 
-            df['companyWebsite'] = df.apply(
-                lambda row: clean_company_website(row['companyWebsite'], row.name), axis=1
+            df['organization_website'] = df.apply(
+                lambda row: clean_company_website(row['organization_website'], row.name), axis=1
             )
-        unknown_count = df['location'].str.lower().str.strip().eq('unknown').sum()
-        print(f"Number of 'Unknown' values in the 'location' column: {unknown_count}")
+        # unknown_count = df['location'].str.lower().str.strip().eq('unknown').sum()
+        # print(f"Number of 'Unknown' values in the 'location' column: {unknown_count}")
 
         #create country column from location
-        if 'location' in df.columns:
-            df['country'] = df['location'].apply(extract_country)
+        # if 'location' in df.columns:
+        #     df['country'] = df['location'].apply(extract_country)
 
-        unknown_count1 = df['location'].str.lower().str.strip().eq('unknown').sum()
-        print(f"Number of 'Unknown' values in the 'location' column after the function exreact_country: {unknown_count1}")
+        # unknown_count1 = df['location'].str.lower().str.strip().eq('unknown').sum()
+        # print(f"Number of 'Unknown' values in the 'location' column after the function exreact_country: {unknown_count1}")
 
 
         # Impute location using LinkedIn URL
-        df = impute_location(df)
+        # df = impute_location(df)
 
-        unknown_count2 = df['location'].str.lower().str.strip().eq('unknown').sum()
-        print(f"Number of 'Unknown' values in the 'location' column after imputation: {unknown_count2}")
+        # unknown_count2 = df['location'].str.lower().str.strip().eq('unknown').sum()
+        # print(f"Number of 'Unknown' values in the 'location' column after imputation: {unknown_count2}")
 
 
         # Duplicate rows for each email
         df = expand_emails(df)
         
-        # Create uniqueId column by combining 'linkedinProfileUrl' and 'email'
-        df['uniqueId'] = df['linkedinProfileUrl'].fillna("Unknown") + "_" + df['email'].fillna("Unknown")   
+        # Create uniqueId column by combining 'id' and 'email'
+        df['uniqueId'] = df['id'].fillna("Unknown") + "_" + df['email'].fillna("Unknown")   
          
             
 
-        # Drop duplicates based on 'linkedinProfileUrl' and 'email'
-        df = df.drop_duplicates(subset=['linkedinProfileUrl', 'email'])
+        # Drop duplicates based on 'id' and 'email'
+        df = df.drop_duplicates(subset=['id', 'email'])
 
         # Filter records with email not equal to "Unknown"
         filtered_df = df[df['email'] != "Unknown"]
@@ -344,10 +290,7 @@ def fetch_and_update_data():
 
         #         all_records = airtable_instance.get_all()
 
-        """
-        #     Adds a `uniqueId` field to all records in the Airtable table by combining `linkedinProfileUrl` and `email`.
-        #     """
-    
+       
         
         
         # for i in range(0, len(record_ids), 10):
@@ -359,22 +302,24 @@ def fetch_and_update_data():
         #         print(f"Failed to delete records {batch_ids}: {e}")
    
         
-        # Save full data to a CSV file
-        df.to_csv('full_cleaned_data.csv', index=False)
+        # # Save full data to a CSV file
+        # df.to_csv('full_cleaned_data.csv', index=False)
 
-        # Save filtered data to a CSV file
-        filtered_df.to_csv('filtered_cleaned_data.csv', index=False)
+        # # Save filtered data to a CSV file
+        # filtered_df.to_csv('filtered_cleaned_data.csv', index=False)
         
         # Fetch the record from ICP_information based on the email
         campaign_field_mapping = {
-            "firstName": "RecipientFirstName",
-            "lastName": "RecipientLastName",
+            "first_name": "RecipientFirstName",
+            "last_name": "RecipientLastName",
             "email": "RecipientEmail",
-            "company": "RecipientCompany",
+            "organization_name": "RecipientCompany",
             # "location": "RecipientLocation",
-            "headline": "RecipientRole",
-            "companyWebsite": "RecipientCompanyWebsite",
-            "allSkills": "RecipientBio"
+            "title": "RecipientRole",
+            "organization_website": "RecipientCompanyWebsite",
+            "organization_short_description": "RecipientBio",
+            "linkedin_url" : "linkedinProfileUrl",
+            # "id" : "id"
             # Add other mappings as needed
         }
        
@@ -414,21 +359,23 @@ def fetch_and_update_data():
             "UniqueFeatures" : "uniqueFeatures",
         }
 
-    
+        send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
         send_to_airtable_if_new(
             filtered_df,
             airtable_new1,
             unique_field="uniqueId",
             desired_fields=[
-                "linkedinProfileUrl",
-                "firstName",
-                "lastName",
+                
+                "linkedin_url",
+                "first_name",
+                "last_name",
                 "email",
-                "company",
-                "headline",
-                "companyWebsite",
-                "allSkills",
-                "uniqueId"
+                "organization_name",
+                "title",
+                "organization_website",
+                "organization_short_description",
+                "uniqueId",
+                "id"
             ],
             field_mapping=campaign_field_mapping,
             icp_to_outreach=icp_to_outreach_mapping,
@@ -443,54 +390,54 @@ def fetch_and_update_data():
         return jsonify({"error": f"Error fetching, processing, or deleting data: {e}"}), 500
 
 
-@app.route("/data_analysis", methods=["GET"])
-def data_analysis():
-    try:
-        # Fetch data from the Airtable cleaned_profile_data table
-        all_records = airtable_new.get_all()
-        data = [record.get('fields', {}) for record in all_records]
+# @app.route("/data_analysis", methods=["GET"])
+# def data_analysis():
+#     try:
+#         # Fetch data from the Airtable cleaned_profile_data table
+#         all_records = airtable_new.get_all()
+#         data = [record.get('fields', {}) for record in all_records]
 
-        if not data:
-            return jsonify({"message": "No data found in the cleaned_profile_data Airtable table."})
+#         if not data:
+#             return jsonify({"message": "No data found in the cleaned_profile_data Airtable table."})
 
-        # Load data into a pandas DataFrame
-        df = pd.DataFrame(data)
+#         # Load data into a pandas DataFrame
+#         df = pd.DataFrame(data)
 
-        # Collect diagnostic information
-        diagnostics = {
-            "dataset_shape": df.shape,
-            "columns": df.columns.tolist(),
-            "data_types": df.dtypes.astype(str).to_dict(),
-            "missing_values": df.isnull().sum().to_dict(),
-            "missing_percentage": ((df.isnull().sum() / len(df)) * 100).to_dict(),
-            "sample_data": df.head().to_dict(orient='records'),
-        }
+#         # Collect diagnostic information
+#         diagnostics = {
+#             "dataset_shape": df.shape,
+#             "columns": df.columns.tolist(),
+#             "data_types": df.dtypes.astype(str).to_dict(),
+#             "missing_values": df.isnull().sum().to_dict(),
+#             "missing_percentage": ((df.isnull().sum() / len(df)) * 100).to_dict(),
+#             "sample_data": df.head().to_dict(orient='records'),
+#         }
 
-        # Perform basic data analysis
-        analysis = {}
+#         # Perform basic data analysis
+#         analysis = {}
 
-        # Summary statistics for numerical columns
-        numerical_columns = df.select_dtypes(include=["number"])
-        if not numerical_columns.empty:
-            analysis["numerical_summary"] = numerical_columns.describe().to_dict()
+#         # Summary statistics for numerical columns
+#         numerical_columns = df.select_dtypes(include=["number"])
+#         if not numerical_columns.empty:
+#             analysis["numerical_summary"] = numerical_columns.describe().to_dict()
 
-        # Unique value counts for categorical columns
-        categorical_columns = df.select_dtypes(include=["object"])
-        if not categorical_columns.empty:
-            analysis["unique_value_counts"] = {
-                col: df[col].nunique() for col in categorical_columns.columns
-            }
+#         # Unique value counts for categorical columns
+#         categorical_columns = df.select_dtypes(include=["object"])
+#         if not categorical_columns.empty:
+#             analysis["unique_value_counts"] = {
+#                 col: df[col].nunique() for col in categorical_columns.columns
+#             }
 
-        # Combine diagnostics and analysis
-        response = {
-            "diagnostics": diagnostics,
-            "analysis": analysis,
-        }
+#         # Combine diagnostics and analysis
+#         response = {
+#             "diagnostics": diagnostics,
+#             "analysis": analysis,
+#         }
 
-        return jsonify(response)
+#         return jsonify(response)
 
-    except Exception as e:
-        return jsonify({"error": f"Error performing data analysis: {e}"}), 500
+#     except Exception as e:
+#         return jsonify({"error": f"Error performing data analysis: {e}"}), 500
 
 
 if __name__ == "__main__":
