@@ -195,31 +195,14 @@ def expand_emails(df):
 #         df.drop(columns=['extracted_location'], inplace=True)
     
 #     return df
-# def clean_and_validate_names(df):
-#     """
-#     Cleans and validates the names in the input data.
-
-#     Args:
-#         data (dict): Dictionary containing 'first_name', 'last_name', and 'name' keys.
-
-#     Returns:
-#         dict: Cleaned and validated data with a validation status.
-#     """
-#     cleaned_data = {}
-#     # validation_status = {"status": "success", "errors": []}
-    
-#     # Clean 'first_name'
-#     # if 'first_name' in data:
-#     #     cleaned_data['first_name'] = data['first_name'].strip().capitalize()
-#     df['first_name'] = df['first_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
-#     # Clean 'last_name'
-#     # if 'last_name' in data:
-#     #     cleaned_data['last_name'] = data['last_name'].strip().capitalize()
-    
-
-#     return pd.DataFrame(cleaned_data)
-
-
+  
+def clean_urls(url, unique_id, column_name):
+    if pd.isna(url) or not str(url).strip() or url.lower() in ["unknown", "n/a"]:
+        return f"https://unknown-{ column_name}-{unique_id}.com"
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    return url
 
 @app.route("/", methods=["GET"])
 def fetch_and_update_data():
@@ -233,17 +216,25 @@ def fetch_and_update_data():
             return jsonify({"message": "No data found in the old Airtable."})
 
         df = pd.DataFrame(data)
+        
+        df = df.dropna(how='all')  
+
         df.to_csv("berkleyshomes_apollo.csv", index=False)
         # Replace problematic values
         df.replace([np.inf, -np.inf], np.nan, inplace=True)
         df = df.where(pd.notnull(df), None)
-
+        
+        
         for column in df.select_dtypes(include=['object']).columns:
             df[column] = df[column].fillna("Unknown")
+
+       
+
         # Clean 'first_name'
         df['first_name'] = df['first_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
         # Clean 'last_name'
         df['last_name'] = df['last_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
+
          # Clean 'email'
         if 'email' in df.columns:
             df['email'] = (
@@ -255,18 +246,15 @@ def fetch_and_update_data():
             )
         
         #clean linkedin_url
-        if 'linkedin_url' in df.columns:
-            def clean_company_website(url, unique_id):
-                if pd.isna(url) or not str(url).strip() or url.lower() in ["unknown", "n/a"]:
-                    return f"https://unknown-company-{unique_id}.com"
-                url = url.strip()
-                if not url.startswith(("http://", "https://")):
-                    url = "https://" + url
-                return url
-
-            df['linkedin_url'] = df.apply(
-                lambda row: clean_company_website(row['linkedin_url'], row.name), axis=1
+        if ' linkedin_url' in df.columns:
+            df[' linkedin_url'] = df.apply(
+                lambda row: clean_urls(row[' linkedin_url'], row.name, ' linkedin_url'), axis=1
             )
+
+        
+        # Function to clean company website URLs
+
+
 
         # Function to clean the headline
         if 'headline' in df.columns:
@@ -276,16 +264,19 @@ def fetch_and_update_data():
                 
                 # Standardize capitalization (title case)
                 headline = str(headline).strip().title()
+                # Remove pipe symbols and extra spaces
+                headline = headline.replace('|', ',')
+                headline = ' '.join(headline.split())  # Strip extra spaces
                 
                 # Remove special characters and symbols (e.g., "|", ":", etc.)
-                headline = re.sub(r'[^\w\s.,-]', '', headline)
+                # headline = re.sub(r'[^\w\s.,-]', '', headline)
                 
-                # Remove redundant or irrelevant phrases (you can adjust this list based on your needs)
-                redundant_phrases = [
-                    'notable experiences', 'luxury international brands', 'in mena', 'in international markets'
-                ]
-                for phrase in redundant_phrases:
-                    headline = headline.replace(phrase, '')
+                # # Remove redundant or irrelevant phrases (you can adjust this list based on your needs)
+                # redundant_phrases = [
+                #     'notable experiences', 'luxury international brands', 'in mena', 'in international markets'
+                # ]
+                # for phrase in redundant_phrases:
+                #     headline = headline.replace(phrase, '')
                 
                 # Remove pipe symbols and extra spaces
                 headline = headline.replace('|', ',')
@@ -296,7 +287,42 @@ def fetch_and_update_data():
             # Apply cleaning function to the "headline" column
             df['headline'] = df['headline'].apply(clean_headline)
 
+        #clean photo_url
+        if 'photo_url' in df.columns:
+            df['photo_url'] = df.apply(
+                lambda row: clean_urls(row['photo_url'], row.name, 'photo_url'), axis=1
+            )
 
+        #clean twitter_url
+        if 'twitter_url' in df.columns:
+            df['twitter_url'] = df.apply(
+                lambda row: clean_urls(row['twitter_url'], row.name, 'twitter_url'), axis=1
+            )    
+
+        #clean organization_website
+        if 'organization_website' in df.columns:
+            df['organization_website'] = df.apply(
+                lambda row: clean_urls(row['organization_website'], row.name, 'organization_website'), axis=1
+            )    
+
+        #clean organization_linkedin
+        if 'organization_linkedin' in df.columns:
+            df['organization_linkedin'] = df.apply(
+                lambda row: clean_urls(row['organization_linkedin'], row.name, 'organization_linkedin'), axis=1
+            ) 
+
+        #clean organization_facebook
+        if 'organization_facebook' in df.columns:
+            df['organization_facebook'] = df.apply(
+                lambda row: clean_urls(row['organization_facebook'], row.name, 'organization_facebook'), axis=1
+            ) 
+
+        #clean organization_logo
+        if 'organization_logo' in df.columns:
+            df['organization_logo'] = df.apply(
+                lambda row: clean_urls(row['organization_logo'], row.name, 'organization_logo'), axis=1
+            ) 
+        #clean organization_phone
         if 'organization_phone' in df.columns:
             def clean_phone_number(x):
                 if pd.isna(x) or not str(x).strip():
@@ -315,20 +341,6 @@ def fetch_and_update_data():
 
       
         
-        if 'organization_website' in df.columns:
-            def clean_company_website(url, unique_id):
-                if pd.isna(url) or not str(url).strip() or url.lower() in ["unknown", "n/a"]:
-                    return f"https://unknown-company-{unique_id}.com"
-                url = url.strip()
-                if not url.startswith(("http://", "https://")):
-                    url = "https://" + url
-                return url
-
-            df['organization_website'] = df.apply(
-                lambda row: clean_company_website(row['organization_website'], row.name), axis=1
-            )
-        # unknown_count = df['location'].str.lower().str.strip().eq('unknown').sum()
-        # print(f"Number of 'Unknown' values in the 'location' column: {unknown_count}")
 
         #create country column from location
         # if 'location' in df.columns:
