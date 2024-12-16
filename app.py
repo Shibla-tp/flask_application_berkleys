@@ -15,14 +15,14 @@ app = Flask(__name__)
 # Old Airtable Configuration
 BASE_ID_OLD = 'app5s8zl7DsUaDmtx'
 API_KEY = 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3'  # Replace with a secure method to fetch the key
-TABLE_NAME_OLD = 'berkleyshomes_apollo'
+TABLE_NAME_OLD = 'profiles_raw'
 
 # New Airtable Configuration
 # BASE_ID_NEW1 = 'appTEXhgxahKgWLgx'
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
-TABLE_NAME_NEW = 'cleaned_profile_data_apollo'
-TABLE_NAME_NEW1 = 'outreach_data'
-TABLE_NAME_NEW2 = 'ICP_information'
+TABLE_NAME_NEW = 'profiles_cleaned'
+TABLE_NAME_NEW1 = 'profiles_outreach'
+TABLE_NAME_NEW2 = 'client_details'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
 # API_KEY_NEW1 = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
 # API_KEY_NEW1 = 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
@@ -113,11 +113,58 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
             for key, default_value in default_values.items():
                 record_data.setdefault(key, default_value)
 
+        # # Apply ICP-to-outreach mapping to populate the specific fields
+        # if icp_to_outreach and icp_df is not None:
+        #     client_id = row.get("client_id")  # Get client_id from the current row
+        #     print(f"Processing client_id: {client_id}")
+
+        #     if client_id:
+        #         # Match the client_id in icp_df
+        #         matching_icp_row = icp_df[icp_df['client_id'] == client_id]
+        #         if matching_icp_row.empty:
+        #             print(f"No matching ICP row for client_id: {client_id}")
+        #         else:
+        #             print("Matching ICP Row Found:", matching_icp_row)
+        #             for outreach_field, icp_field in icp_to_outreach.items():
+        #                 if icp_field in matching_icp_row.columns:
+        #                     record_data[outreach_field] = matching_icp_row[icp_field].iloc[0]  # Use the first matching record
+        #                 else:
+        #                     print(f"ICP Field {icp_field} not found in icp_df")
+        # Apply ICP-to-outreach mapping to populate the specific fields
+        # Apply ICP-to-outreach mapping to populate the specific fields
+
+        # Apply ICP-to-outreach mapping to populate the specific fields
+        # if icp_to_outreach:
+        #     for outreach_field, icp_field in icp_to_outreach.items():
+        #         if icp_field in icp_df.columns:  # Ensure the column exists in icp_df
+        #             # Fetch the associated_client_id from the current row of df
+        #             associated_client_id = row.get("associated_client_id")  # Assuming associated_client_id is part of df
+                    
+        #             if associated_client_id:
+        #                 # Find the matching row in icp_df where client_id matches associated_client_id
+        #                 matching_icp_row = icp_df[icp_df["client_id"] == associated_client_id]  # Match based on associated_client_id in df and client_id in icp_df
+                        
+        #                 if not matching_icp_row.empty:
+        #                     # Perform the mapping from icp_df to record_data for the outreach field
+        #                     record_data[outreach_field] = matching_icp_row.iloc[0][icp_field]  # Get the value for icp_field from the first matching row
+                # Apply ICP-to-outreach mapping to populate the specific fields
         # Apply ICP-to-outreach mapping to populate the specific fields
         if icp_to_outreach:
             for outreach_field, icp_field in icp_to_outreach.items():
                 if icp_field in icp_df.columns:  # Ensure the column exists in icp_df
-                    record_data[outreach_field] = icp_df.loc[0, icp_field]  # Use the first row of icp_df for the mapping
+                    # Fetch the associated_client_id from the current row of df
+                    associated_client_id = row.get("associated_client_id")  # Assuming associated_client_id is part of df
+                    
+                    if associated_client_id:
+                        # Find all matching rows in icp_df where client_id matches associated_client_id
+                        matching_icp_rows = icp_df[icp_df["client_id"] == associated_client_id]
+                        
+                        # If there are multiple matching rows, iterate over them and apply mapping
+                        if not matching_icp_rows.empty:
+                            # For each matching row, apply the outreach field mapping
+                            for _, icp_row in matching_icp_rows.iterrows():
+                                # Apply the mapping to the record_data for the outreach field
+                                record_data[outreach_field] = icp_row[icp_field]
 
         # Insert the record if it does not already exist
         if not record_exists_in_airtable(airtable_instance, {"uniqueId": uniqueId}, "uniqueId"):
@@ -182,101 +229,6 @@ def expand_emails(df):
     return result_df.reset_index(drop=True)  # Reset the index to avoid duplicates
 
 
-
-# def expand_emails(df):
-#     """
-#     Duplicates rows for each email present in a comma-separated email field.
-#     If a single email is present, it returns the same row without duplication.
-#     """
-#     rows = []
-#     for i, row in df.iterrows():
-#         emails = row['email'].split(',') if row['email'] != "Unknown" else ["Unknown"]
-#         for email in emails:
-#             email = email.strip()  # Clean up individual emails
-#             if email:  # Ignore empty email entries
-#                 new_row = row.copy()
-#                 new_row['email'] = email
-#                 rows.append(new_row)
-#     return pd.DataFrame(rows)
-
-# def extract_country(location):
-#     """
-#     Dynamically extracts the country name from a location string using pycountry.
-#     """
-#     if not location or location.lower() == "unknown":
-#         return "Unknown"
-
-#     # Normalize the location string for matching
-#     location = location.lower()
-    
-#     # Iterate through all country names in pycountry
-#     for country in pycountry.countries:
-#         if country.name.lower() in location:
-#             return country.name
-        
-#         # Check alternate names like "United States of America" (official_name)
-#         if hasattr(country, 'official_name') and country.official_name.lower() in location:
-#             return country.name
-
-#     return "Unknown"
-
-# def extract_location_from_linkedin(url):
-#     """
-#     Extract location-related information from the LinkedIn URL.
-#     Example: 'https://www.linkedin.com/company/example-company-location-dubai' -> 'Dubai'
-#     """
-#     import re
-#     if not url or url.lower() == "unknown":
-#         return "Unknown"
-    
-#     # Adjust regex to find location keywords (e.g., after "company")
-#     match = re.search(r'company/.*?-([a-zA-Z]+[-\s]?[a-zA-Z]*)$', url)
-#     if match:
-#         location = match.group(1).replace('-', ' ').title()
-#         return location
-#     return "Unknown"
-
-
-# def impute_location(df):
-#     """
-#     Impute missing location values using multiple methods, including LinkedIn URLs and predefined mappings.
-#     """
-#     import re
-    
-#     def extract_location_from_linkedin(url):
-#         if not url or url.lower() == "unknown":
-#             return "Unknown"
-#         match = re.search(r'company/.*?-([a-zA-Z]+[-\s]?[a-zA-Z]*)$', url)
-#         if match:
-#             location = match.group(1).replace('-', ' ').title()
-#             return location
-#         return "Unknown"
-    
-#     # Add extracted location column
-#     if 'location' in df.columns and 'companyLinkedInUrl' in df.columns:
-#         df['extracted_location'] = df['companyLinkedInUrl'].apply(extract_location_from_linkedin)
-    
-#     # Mapping of company names to default locations
-#     location_map = {
-#         'Example Company': 'Dubai',
-#         'Tech Innovators': 'Abu Dhabi'
-#     }
-    
-#     # Impute location
-#     df['location'] = df.apply(
-#         lambda row: row['location']
-#         if row['location'] != "Unknown"
-#         else row['extracted_location']
-#         if 'extracted_location' in row and row['extracted_location'] != "Unknown"
-#         else location_map.get(row['company'], "Unknown"),
-#         axis=1
-#     )
-    
-#     # Drop helper columns
-#     if 'extracted_location' in df.columns:
-#         df.drop(columns=['extracted_location'], inplace=True)
-    
-#     return df
   
 def clean_urls(url, unique_id, column_name):
     if pd.isna(url) or not str(url).strip() or url.lower() in ["unknown", "n/a"]:
@@ -298,7 +250,30 @@ def clean_phone_number(x):
         cleaned_number = ''.join(filter(str.isdigit, x))
     return cleaned_number if cleaned_number else "Unknown"
 
-   
+
+
+def fetch_client_details(df, airtable_instance, icp_field="associated_client_id", client_details_field="client_id"):
+    """
+    Fetch client details from Airtable based on matching associated_client_id in df and client_id in client_details.
+    """
+    client_details = []  # This will hold matched client details
+
+    for _, row in df.iterrows():
+        client_id = row.get(icp_field)
+        
+        if client_id:
+            # Search for the client details in Airtable where client_id matches associated_client_id
+            records = airtable_instance.search(client_details_field, client_id)
+            
+            if records:
+                # Assuming we need the first match, append it to the client_details list
+                client_details.append(records[0]['fields'])
+
+    # Convert client details list to DataFrame
+    client_details_df = pd.DataFrame(client_details)
+    print(client_details_df)
+    
+    return client_details_df
 
 @app.route("/", methods=["GET"])
 def fetch_and_update_data():
@@ -430,22 +405,7 @@ def fetch_and_update_data():
              df['organization_phone'] = df['organization_phone'].apply(clean_phone_number)
 
 
-      
-        
-
-        #create country column from location
-        # if 'location' in df.columns:
-        #     df['country'] = df['location'].apply(extract_country)
-
-        # unknown_count1 = df['location'].str.lower().str.strip().eq('unknown').sum()
-        # print(f"Number of 'Unknown' values in the 'location' column after the function exreact_country: {unknown_count1}")
-
-
-        # Impute location using LinkedIn URL
-        # df = impute_location(df)
-
-        # unknown_count2 = df['location'].str.lower().str.strip().eq('unknown').sum()
-        # print(f"Number of 'Unknown' values in the 'location' column after imputation: {unknown_count2}")
+           
 
 
         # Duplicate rows for each email
@@ -462,28 +422,6 @@ def fetch_and_update_data():
         # Filter records with email not equal to "Unknown"
         filtered_df = df[df['email'] != "Unknown"]
 
-        # Prepare desired fields for insertion
-
-        #         all_records = airtable_instance.get_all()
-
-       
-        
-        
-        # for i in range(0, len(record_ids), 10):
-        #     batch_ids = record_ids[i:i + 10]
-        #     try:
-        #         airtable_old.batch_delete(batch_ids)
-        #         print(f"Deleted records: {batch_ids}")
-        #     except Exception as e:
-        #         print(f"Failed to delete records {batch_ids}: {e}")
-   
-        
-        # # Save full data to a CSV file
-        # df.to_csv('full_cleaned_data.csv', index=False)
-
-        # # Save filtered data to a CSV file
-        # filtered_df.to_csv('filtered_cleaned_data.csv', index=False)
-        
         # Fetch the record from ICP_information based on the email
         campaign_field_mapping = {
             "first_name": "RecipientFirstName",
@@ -509,17 +447,33 @@ def fetch_and_update_data():
             "Fonts" : " Headlines: Anton Body: Poppins"
         }
        
-        email = "mohammed@taippa.com"
-        icp_records = airtable_new2.search('email', email)
+        # email = "mohammed@taippa.com"
+        # icp_records = airtable_new2.search('email', email)
+        # # icp_records = fetch_icp_records(df, airtable_new2, icp_field="associated_client_id")
 
-        if not icp_records:
-            return jsonify({"error": f"No record found in ICP_information for email: {email}"}), 404
 
-        # Extract fields from the first record
-        icp_data = icp_records[0]['fields']  # Assuming first match is sufficient
+        # if not icp_records:
+        #     return jsonify({"error": f"No record found in ICP_information for email: {email}"}), 404
+
+        # # Extract fields from the first record
+        # icp_data = icp_records[0]['fields']  # Assuming first match is sufficient
+
+        # # Convert icp_data dictionary to a DataFrame
+        # icp_df = pd.DataFrame([icp_data])  # Wrap icp_data in a list to create a single-row DataFrame
+        # print("Fetched ICP Data as DataFrame:")
+        # print(icp_df)
+        # Fetch ICP records based on associated_client_id
+        icp_df = fetch_client_details(df, airtable_new2, icp_field="associated_client_id", client_details_field="client_id")
+
+
+        # if not icp_records:
+        #     return jsonify({"error": "No ICP records found based on associated_client_id."}), 404
+
+        # Extract fields from the first ICP record
+        # icp_data = icp_records[0]['fields']  # Assuming first match is sufficient
 
         # Convert icp_data dictionary to a DataFrame
-        icp_df = pd.DataFrame([icp_data])  # Wrap icp_data in a list to create a single-row DataFrame
+        # icp_df = pd.DataFrame([icp_data])  # Wrap icp_data in a list to create a single-row DataFrame
         print("Fetched ICP Data as DataFrame:")
         print(icp_df)
 
@@ -535,7 +489,7 @@ def fetch_and_update_data():
             "UniqueFeatures" : "uniqueFeatures",
         }
 
-        send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
+        # send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
         send_to_airtable_if_new(
             filtered_df,
             airtable_new1,
@@ -567,54 +521,7 @@ def fetch_and_update_data():
         return jsonify({"error": f"Error fetching, processing, or deleting data: {e}"}), 500
 
 
-# @app.route("/data_analysis", methods=["GET"])
-# def data_analysis():
-#     try:
-#         # Fetch data from the Airtable cleaned_profile_data table
-#         all_records = airtable_new.get_all()
-#         data = [record.get('fields', {}) for record in all_records]
 
-#         if not data:
-#             return jsonify({"message": "No data found in the cleaned_profile_data Airtable table."})
-
-#         # Load data into a pandas DataFrame
-#         df = pd.DataFrame(data)
-
-#         # Collect diagnostic information
-#         diagnostics = {
-#             "dataset_shape": df.shape,
-#             "columns": df.columns.tolist(),
-#             "data_types": df.dtypes.astype(str).to_dict(),
-#             "missing_values": df.isnull().sum().to_dict(),
-#             "missing_percentage": ((df.isnull().sum() / len(df)) * 100).to_dict(),
-#             "sample_data": df.head().to_dict(orient='records'),
-#         }
-
-#         # Perform basic data analysis
-#         analysis = {}
-
-#         # Summary statistics for numerical columns
-#         numerical_columns = df.select_dtypes(include=["number"])
-#         if not numerical_columns.empty:
-#             analysis["numerical_summary"] = numerical_columns.describe().to_dict()
-
-#         # Unique value counts for categorical columns
-#         categorical_columns = df.select_dtypes(include=["object"])
-#         if not categorical_columns.empty:
-#             analysis["unique_value_counts"] = {
-#                 col: df[col].nunique() for col in categorical_columns.columns
-#             }
-
-#         # Combine diagnostics and analysis
-#         response = {
-#             "diagnostics": diagnostics,
-#             "analysis": analysis,
-#         }
-
-#         return jsonify(response)
-
-#     except Exception as e:
-#         return jsonify({"error": f"Error performing data analysis: {e}"}), 500
 
 @app.route('/post-data', methods=['GET'])
 def post_data():
