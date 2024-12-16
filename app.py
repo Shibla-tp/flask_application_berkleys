@@ -113,42 +113,6 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
             for key, default_value in default_values.items():
                 record_data.setdefault(key, default_value)
 
-        # # Apply ICP-to-outreach mapping to populate the specific fields
-        # if icp_to_outreach and icp_df is not None:
-        #     client_id = row.get("client_id")  # Get client_id from the current row
-        #     print(f"Processing client_id: {client_id}")
-
-        #     if client_id:
-        #         # Match the client_id in icp_df
-        #         matching_icp_row = icp_df[icp_df['client_id'] == client_id]
-        #         if matching_icp_row.empty:
-        #             print(f"No matching ICP row for client_id: {client_id}")
-        #         else:
-        #             print("Matching ICP Row Found:", matching_icp_row)
-        #             for outreach_field, icp_field in icp_to_outreach.items():
-        #                 if icp_field in matching_icp_row.columns:
-        #                     record_data[outreach_field] = matching_icp_row[icp_field].iloc[0]  # Use the first matching record
-        #                 else:
-        #                     print(f"ICP Field {icp_field} not found in icp_df")
-        # Apply ICP-to-outreach mapping to populate the specific fields
-        # Apply ICP-to-outreach mapping to populate the specific fields
-
-        # Apply ICP-to-outreach mapping to populate the specific fields
-        # if icp_to_outreach:
-        #     for outreach_field, icp_field in icp_to_outreach.items():
-        #         if icp_field in icp_df.columns:  # Ensure the column exists in icp_df
-        #             # Fetch the associated_client_id from the current row of df
-        #             associated_client_id = row.get("associated_client_id")  # Assuming associated_client_id is part of df
-                    
-        #             if associated_client_id:
-        #                 # Find the matching row in icp_df where client_id matches associated_client_id
-        #                 matching_icp_row = icp_df[icp_df["client_id"] == associated_client_id]  # Match based on associated_client_id in df and client_id in icp_df
-                        
-        #                 if not matching_icp_row.empty:
-        #                     # Perform the mapping from icp_df to record_data for the outreach field
-        #                     record_data[outreach_field] = matching_icp_row.iloc[0][icp_field]  # Get the value for icp_field from the first matching row
-                # Apply ICP-to-outreach mapping to populate the specific fields
-        # Apply ICP-to-outreach mapping to populate the specific fields
         if icp_to_outreach:
             for outreach_field, icp_field in icp_to_outreach.items():
                 if icp_field in icp_df.columns:  # Ensure the column exists in icp_df
