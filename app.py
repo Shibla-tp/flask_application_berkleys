@@ -7,6 +7,7 @@ import pycountry
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
+import requests  # Import the external 'requests' library
 
 
 app = Flask(__name__)
@@ -50,6 +51,45 @@ def record_exists_in_airtable(airtable_instance, record_data, unique_field):
 
 
 
+# def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
+#     for i, row in df.iterrows():
+#         record_data = row.dropna().to_dict()
+#         if desired_fields:
+#             record_data = {field: row[field] for field in desired_fields if field in row and not pd.isna(row[field])}
+
+#         # Ensure 'createdTime' is not part of the record
+#         if "created_time" in record_data:
+#             del record_data["created_time"]
+
+#         # Generate the uniqueId locally
+#         uniqueId = f"{record_data.get('id', '')}_{record_data.get('email', '')}"
+#         record_data["uniqueId"] = uniqueId
+
+#         # Apply field name mapping (if provided)
+#         if field_mapping:
+#             record_data = {field_mapping.get(k, k): v for k, v in record_data.items()}
+
+#         # Merge default values for other fields
+#         if default_values:
+#             for key, default_value in default_values.items():
+#                 record_data.setdefault(key, default_value)
+
+#         # Apply ICP-to-outreach mapping to populate the specific fields
+#         if icp_to_outreach:
+#             for outreach_field, icp_field in icp_to_outreach.items():
+#                 if icp_field in icp_df.columns:  # Ensure the column exists in icp_df
+#                     record_data[outreach_field] = icp_df.loc[0, icp_field]  # Use the first row of icp_df for the mapping
+
+#         # Insert the record if it does not already exist
+#         if not record_exists_in_airtable(airtable_instance, {"uniqueId": uniqueId}, "uniqueId"):
+#             try:
+#                 airtable_instance.insert(record_data)
+#                 print(f"Record {i} inserted successfully.")
+#             except Exception as e:
+#                 print(f"Failed to insert record {i}: {e}")
+#         else:
+#             print(f"Record {i} already exists in Airtable. Skipping insertion.")
+
 def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
     for i, row in df.iterrows():
         record_data = row.dropna().to_dict()
@@ -89,23 +129,41 @@ def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=
         else:
             print(f"Record {i} already exists in Airtable. Skipping insertion.")
 
+def clean_name(df, column_name):
+    
+    def standardize_capitalization(text):
+        if isinstance(text, str):
+            text = text.strip()  # Strip whitespace
+            return text.capitalize()  # Capitalizes the first letter and lowercases the rest
+        return text
+
+    # Apply the cleaning function to the specified column
+    df[column_name] = df[column_name].apply(standardize_capitalization)
+    return df
+
+
+
+
+# def process_email(email):
+#     """
+#     Processes the email field:
+#     - If email is `,`, empty, or missing, return 'Unknown'.
+#     - Otherwise, return the original email.
+#     """
+#     if not email or email in [",", "unknown", "Unknown", ""]:
+#         return "Unknown"
+#     return email.strip()  # Clean leading/trailing spaces
 
 
 def process_email(email):
     """
-    Processes the email field:
-    - If email is `,`, empty, or missing, return 'Unknown'.
-    - Otherwise, return the original email.
+    Processes an email to strip out any alias (e.g., test.email+alias@gmail.com should become test.email@gmail.com).
     """
-    if not email or email in [",", "unknown", "Unknown", ""]:
-        return "Unknown"
-    return email.strip()  # Clean leading/trailing spaces
+    email = email.lower()  # Convert to lowercase for consistency
+    email = re.sub(r'\+.*?@', '@', email)  # Remove any "+alias" before the '@' symbol
+    return email
 
 def expand_emails(df):
-    """
-    Duplicates rows for each email present in a comma-separated email field.
-    If a single email is present, it returns the same row without duplication.
-    """
     rows = []
     for i, row in df.iterrows():
         emails = row['email'].split(',') if row['email'] != "Unknown" else ["Unknown"]
@@ -115,7 +173,31 @@ def expand_emails(df):
                 new_row = row.copy()
                 new_row['email'] = email
                 rows.append(new_row)
-    return pd.DataFrame(rows)
+    
+    # If no rows were added, return an empty DataFrame with 'email' column
+    if not rows:
+        return pd.DataFrame(columns=['email'])
+    
+    result_df = pd.DataFrame(rows)
+    return result_df.reset_index(drop=True)  # Reset the index to avoid duplicates
+
+
+
+# def expand_emails(df):
+#     """
+#     Duplicates rows for each email present in a comma-separated email field.
+#     If a single email is present, it returns the same row without duplication.
+#     """
+#     rows = []
+#     for i, row in df.iterrows():
+#         emails = row['email'].split(',') if row['email'] != "Unknown" else ["Unknown"]
+#         for email in emails:
+#             email = email.strip()  # Clean up individual emails
+#             if email:  # Ignore empty email entries
+#                 new_row = row.copy()
+#                 new_row['email'] = email
+#                 rows.append(new_row)
+#     return pd.DataFrame(rows)
 
 # def extract_country(location):
 #     """
@@ -204,6 +286,20 @@ def clean_urls(url, unique_id, column_name):
         url = "https://" + url
     return url
 
+def clean_phone_number(x):
+    if pd.isna(x) or not str(x).strip():
+        return "Unknown"
+    x = str(x).strip()
+    if x.lower() == "unknown":
+        return "Unknown"
+    if x.startswith("+"):
+        cleaned_number = '+' + ''.join(filter(str.isdigit, x))
+    else:
+        cleaned_number = ''.join(filter(str.isdigit, x))
+    return cleaned_number if cleaned_number else "Unknown"
+
+   
+
 @app.route("/", methods=["GET"])
 def fetch_and_update_data():
     try:
@@ -228,12 +324,16 @@ def fetch_and_update_data():
         for column in df.select_dtypes(include=['object']).columns:
             df[column] = df[column].fillna("Unknown")
 
-       
-
-        # Clean 'first_name'
-        df['first_name'] = df['first_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
-        # Clean 'last_name'
-        df['last_name'] = df['last_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
+        # # Clean 'first_name'
+        if 'first_name' in df.columns:
+            df = clean_name(df, 'first_name')
+        # # Clean 'last_name'
+        if 'last_name' in df.columns:
+            df = clean_name(df, 'last_name')
+        # # Clean 'first_name'
+        # df['first_name'] = df['first_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
+        # # Clean 'last_name'
+        # df['last_name'] = df['last_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
 
          # Clean 'email'
         if 'email' in df.columns:
@@ -324,19 +424,10 @@ def fetch_and_update_data():
             ) 
         #clean organization_phone
         if 'organization_phone' in df.columns:
-            def clean_phone_number(x):
-                if pd.isna(x) or not str(x).strip():
-                    return "Unknown"
-                x = str(x).strip()
-                if x.lower() == "unknown":
-                    return "Unknown"
-                if x.startswith("+"):
-                    cleaned_number = '+' + ''.join(filter(str.isdigit, x))
-                else:
-                    cleaned_number = ''.join(filter(str.isdigit, x))
-                return cleaned_number if cleaned_number else "Unknown"
+            df = clean_name(df, 'organization_phone')
 
-            df['organization_phone'] = df['organization_phone'].apply(clean_phone_number)
+        if 'organization_phone' in df.columns:
+             df['organization_phone'] = df['organization_phone'].apply(clean_phone_number)
 
 
       
@@ -460,7 +551,8 @@ def fetch_and_update_data():
                 "organization_website",
                 "organization_short_description",
                 "uniqueId",
-                "id"
+                "id",
+                "associated_client_id"
             ],
             field_mapping=campaign_field_mapping,
             icp_to_outreach=icp_to_outreach_mapping,
@@ -524,6 +616,9 @@ def fetch_and_update_data():
 #     except Exception as e:
 #         return jsonify({"error": f"Error performing data analysis: {e}"}), 500
 
+@app.route('/post-data', methods=['GET'])
+def post_data():
+    return {"message": "Data received successfully"}, 200
 
 if __name__ == "__main__":
     app.run(debug=True)
