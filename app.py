@@ -21,8 +21,9 @@ TABLE_NAME_OLD = 'profiles_raw'
 # BASE_ID_NEW1 = 'appTEXhgxahKgWLgx'
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'profiles_cleaned'
-TABLE_NAME_NEW1 = 'profiles_outreach'
+TABLE_NAME_NEW1 = 'contacts_berkleys_homes_copy'
 TABLE_NAME_NEW2 = 'client_details'
+TABLE_NAME_NEW3 = 'contacts_taippa_marketing_copy'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
 # API_KEY_NEW1 = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
 # API_KEY_NEW1 = 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
@@ -31,11 +32,16 @@ API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b8
 airtable_old = Airtable(BASE_ID_OLD, TABLE_NAME_OLD, API_KEY)
 airtable_new = Airtable(BASE_ID_NEW, TABLE_NAME_NEW, API_KEY_NEW)
 airtable_new1 = Airtable(BASE_ID_NEW, TABLE_NAME_NEW1, API_KEY_NEW)
+airtable_new3 = Airtable(BASE_ID_NEW, TABLE_NAME_NEW3, API_KEY_NEW)
 try:
     airtable_new2 = Airtable(BASE_ID_NEW, TABLE_NAME_NEW2, API_KEY_NEW)
 except Exception as e:
     print(f"Error initializing Airtable: {e}")
 
+airtable_instances = {
+    "contacts_berkleys_homes_copy": airtable_new1,
+    "contacts_taippa_marketing_copy": airtable_new3,
+}
 
 def record_exists_in_airtable(airtable_instance, record_data, unique_field):
     """
@@ -51,94 +57,92 @@ def record_exists_in_airtable(airtable_instance, record_data, unique_field):
 
 
 
-# def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
-#     for i, row in df.iterrows():
-#         record_data = row.dropna().to_dict()
-#         if desired_fields:
-#             record_data = {field: row[field] for field in desired_fields if field in row and not pd.isna(row[field])}
+def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields=None, 
+                            field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
+    """
+    Send records to Airtable if they are new, dynamically selecting the Airtable instance
+    based on outreach_table value and applying icp_to_outreach mapping.
 
-#         # Ensure 'createdTime' is not part of the record
-#         if "created_time" in record_data:
-#             del record_data["created_time"]
-
-#         # Generate the uniqueId locally
-#         uniqueId = f"{record_data.get('id', '')}_{record_data.get('email', '')}"
-#         record_data["uniqueId"] = uniqueId
-
-#         # Apply field name mapping (if provided)
-#         if field_mapping:
-#             record_data = {field_mapping.get(k, k): v for k, v in record_data.items()}
-
-#         # Merge default values for other fields
-#         if default_values:
-#             for key, default_value in default_values.items():
-#                 record_data.setdefault(key, default_value)
-
-#         # Apply ICP-to-outreach mapping to populate the specific fields
-#         if icp_to_outreach:
-#             for outreach_field, icp_field in icp_to_outreach.items():
-#                 if icp_field in icp_df.columns:  # Ensure the column exists in icp_df
-#                     record_data[outreach_field] = icp_df.loc[0, icp_field]  # Use the first row of icp_df for the mapping
-
-#         # Insert the record if it does not already exist
-#         if not record_exists_in_airtable(airtable_instance, {"uniqueId": uniqueId}, "uniqueId"):
-#             try:
-#                 airtable_instance.insert(record_data)
-#                 print(f"Record {i} inserted successfully.")
-#             except Exception as e:
-#                 print(f"Failed to insert record {i}: {e}")
-#         else:
-#             print(f"Record {i} already exists in Airtable. Skipping insertion.")
-
-def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
+    Args:
+        df (pd.DataFrame): Input DataFrame containing records to process.
+        airtable_instances (dict): Dictionary of Airtable instances keyed by table name.
+        unique_field (str): Unique field to check for duplicates in Airtable.
+        desired_fields (list, optional): List of fields to include in the record.
+        field_mapping (dict, optional): Mapping of field names (source_field: target_field).
+        default_values (dict, optional): Default values to include in the record.
+        icp_to_outreach (dict, optional): Mapping of outreach fields to icp_df fields.
+        icp_df (pd.DataFrame, optional): DataFrame containing ICP data with outreach_table references.
+    """
     for i, row in df.iterrows():
-        record_data = row.dropna().to_dict()
-        if desired_fields:
-            record_data = {field: row[field] for field in desired_fields if field in row and not pd.isna(row[field])}
+        try:
+            # Step 1: Convert row to dictionary
+            record_data = row.dropna().to_dict()
 
-        # Ensure 'createdTime' is not part of the record
-        if "created_time" in record_data:
-            del record_data["created_time"]
+            # Step 2: Restrict to desired fields if provided
+            if desired_fields:
+                record_data = {field: record_data[field] for field in desired_fields if field in record_data}
 
-        # Generate the uniqueId locally
-        uniqueId = f"{record_data.get('id', '')}_{record_data.get('email', '')}"
-        record_data["uniqueId"] = uniqueId
+            # Step 3: Add uniqueId to record
+            unique_id_value = f"{record_data.get('id', '')}_{record_data.get('email', '')}"
+            record_data["unique_id"] = unique_id_value
 
-        # Apply field name mapping (if provided)
-        if field_mapping:
-            record_data = {field_mapping.get(k, k): v for k, v in record_data.items()}
+            # # Debug: Print record_data
+            # print(f"Record {i} - Processed Data: {record_data}")
 
-        # Merge default values for other fields
-        if default_values:
-            for key, default_value in default_values.items():
-                record_data.setdefault(key, default_value)
+            # Step 4: Find matching outreach_table
+            outreach_table = None
+            if icp_df is not None:
+                client_id = row.get("associated_client_id")
+                if client_id:
+                    matching_row = icp_df[icp_df["client_id"] == client_id]
+                    if not matching_row.empty:
+                        outreach_table = matching_row.iloc[0]["outreach_table"]
 
-        if icp_to_outreach:
-            for outreach_field, icp_field in icp_to_outreach.items():
-                if icp_field in icp_df.columns:  # Ensure the column exists in icp_df
-                    # Fetch the associated_client_id from the current row of df
-                    associated_client_id = row.get("associated_client_id")  # Assuming associated_client_id is part of df
-                    
-                    if associated_client_id:
-                        # Find all matching rows in icp_df where client_id matches associated_client_id
-                        matching_icp_rows = icp_df[icp_df["client_id"] == associated_client_id]
-                        
-                        # If there are multiple matching rows, iterate over them and apply mapping
-                        if not matching_icp_rows.empty:
-                            # For each matching row, apply the outreach field mapping
-                            for _, icp_row in matching_icp_rows.iterrows():
-                                # Apply the mapping to the record_data for the outreach field
-                                record_data[outreach_field] = icp_row[icp_field]
+            # Validate outreach_table
+            if not outreach_table:
+                print(f"Outreach table is None for record {i}. Skipping.")
+                continue
 
-        # Insert the record if it does not already exist
-        if not record_exists_in_airtable(airtable_instance, {"uniqueId": uniqueId}, "uniqueId"):
-            try:
-                airtable_instance.insert(record_data)
-                print(f"Record {i} inserted successfully.")
-            except Exception as e:
-                print(f"Failed to insert record {i}: {e}")
-        else:
-            print(f"Record {i} already exists in Airtable. Skipping insertion.")
+            # Fetch Airtable instance
+            airtable_instance = airtable_instances.get(outreach_table)
+            if not airtable_instance:
+                print(f"No Airtable instance for outreach_table: {outreach_table}. Skipping record {i}.")
+                continue
+
+            # Step 5: Map icp_to_outreach fields if applicable
+            if icp_to_outreach and icp_df is not None:
+                client_id = row.get("associated_client_id")
+                if client_id:
+                    matching_icp_rows = icp_df[icp_df["client_id"] == client_id]
+                    if not matching_icp_rows.empty:
+                        for outreach_field, icp_field in icp_to_outreach.items():
+                            if icp_field in matching_icp_rows.columns:
+                                record_data[outreach_field] = matching_icp_rows.iloc[0][icp_field]
+
+            # Step 6: Apply field name mapping if provided
+            if field_mapping:
+                record_data = {field_mapping.get(k, k): v for k, v in record_data.items()}
+
+            # Step 7: Add default values if provided
+            if default_values:
+                for key, value in default_values.items():
+                    record_data.setdefault(key, value)
+
+            # Step 8: Check for duplicates and insert
+            if not record_exists_in_airtable(airtable_instance, {"unique_id": unique_id_value}, unique_field):
+                try:
+                    airtable_instance.insert(record_data)
+                    print(f"Record {i} inserted successfully into {outreach_table}.")
+                except Exception as e:
+                    print(f"Failed to insert record {i}: {e}")
+            else:
+                print(f"Record {i} already exists in {outreach_table}. Skipping insertion.")
+
+        except Exception as e:
+            print(f"Error processing record {i}: {e}")
+
+
+
 
 def clean_name(df, column_name):
     
@@ -235,7 +239,7 @@ def fetch_client_details(df, airtable_instance, icp_field="associated_client_id"
 
     # Convert client details list to DataFrame
     client_details_df = pd.DataFrame(client_details)
-    print(client_details_df)
+    # print(client_details_df)
     
     return client_details_df
 
@@ -376,7 +380,7 @@ def fetch_and_update_data():
         df = expand_emails(df)
         
         # Create uniqueId column by combining 'id' and 'email'
-        df['uniqueId'] = df['id'].fillna("Unknown") + "_" + df['email'].fillna("Unknown")   
+        df['unique_id'] = df['id'].fillna("Unknown") + "_" + df['email'].fillna("Unknown")   
          
             
 
@@ -388,15 +392,15 @@ def fetch_and_update_data():
 
         # Fetch the record from ICP_information based on the email
         campaign_field_mapping = {
-            "first_name": "RecipientFirstName",
-            "last_name": "RecipientLastName",
-            "email": "RecipientEmail",
-            "organization_name": "RecipientCompany",
+            "first_name": "recipient_first_name",
+            "last_name": "recipient_last_name",
+            "email": "recipient_email",
+            "organization_name": "recipient_company",
             # "location": "RecipientLocation",
-            "title": "RecipientRole",
-            "organization_website": "RecipientCompanyWebsite",
-            "organization_short_description": "RecipientBio",
-            "linkedin_url" : "linkedinProfileUrl",
+            "title": "recipient_role",
+            "organization_website": "recipient_company_website",
+            "organization_short_description": "recipient_bio",
+            "linkedin_url" : "linkedin_profile_url",
             # "id" : "id"
             # Add other mappings as needed
         }
@@ -406,9 +410,9 @@ def fetch_and_update_data():
            
 
         default_values_campaign = {
-            "CtaOptions" : "Schedule a quick 15-minute call to discuss how we can help GrowthTech Solutions scale personalized email outreach. At https://taippa.com/contact/ ",
-            "ColorScheme" : "#000000,#ffffff,#b366cf,#6834cb",
-            "Fonts" : " Headlines: Anton Body: Poppins"
+            "cta_options" : "Schedule a quick 15-minute call to discuss how we can help GrowthTech Solutions scale personalized email outreach. At https://taippa.com/contact/ ",
+            "color_scheme" : "#000000,#ffffff,#b366cf,#6834cb",
+            "fonts" : " Headlines: Anton Body: Poppins"
         }
        
         # email = "mohammed@taippa.com"
@@ -443,21 +447,21 @@ def fetch_and_update_data():
 
         # Define field mapping for outreach_data
         icp_to_outreach_mapping = {
-            "SenderEmail": "email",
-            "SenderCompany": "companyName",
-            "SenderName": "fullName",
-            "SenderTitle": "jobtitle",
-            "SenderCompanyWebsite": "companyWebsite",
-            "KeyBenefits" : "solutionBenefits",            
-            "ImpactMetrics" : "solutionImpactExamples",
-            "UniqueFeatures" : "uniqueFeatures",
+            "sender_email": "email",
+            "sender_company": "companyName",
+            "sender_name": "fullName",
+            "sender_title": "jobtitle",
+            "sender_company_website": "companyWebsite",
+            "key_benefits" : "solution_benefits",            
+            "impact_metrics" : "solution_impact_examples",
+            "unique_features" : "unique_features",
         }
 
         send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
         send_to_airtable_if_new(
             filtered_df,
-            airtable_new1,
-            unique_field="uniqueId",
+            airtable_instances,
+            unique_field="unique_id",
             desired_fields=[
                 
                 "linkedin_url",
@@ -468,15 +472,15 @@ def fetch_and_update_data():
                 "title",
                 "organization_website",
                 "organization_short_description",
-                "uniqueId",
+                "unique_id",
                 "id",
                 "associated_client_id"
             ],
             field_mapping=campaign_field_mapping,
             icp_to_outreach=icp_to_outreach_mapping,
             default_values=default_values_campaign,
-            icp_df=icp_df
-        )
+            icp_df=icp_df,
+                    )
         
 
         return jsonify({"message": "Data cleaned, updated, and old records processed successfully."})
