@@ -39,8 +39,8 @@ except Exception as e:
     print(f"Error initializing Airtable: {e}")
 
 airtable_instances = {
-    "contacts_berkleys_homes_copy": airtable_new1,
-    "contacts_taippa_marketing_copy": airtable_new3,
+    "contacts_berkleys_homes": airtable_new1,
+    "contacts_taippa_marketing": airtable_new3,
 }
 
 def record_exists_in_airtable(airtable_instance, record_data, unique_field):
