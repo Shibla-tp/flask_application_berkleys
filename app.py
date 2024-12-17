@@ -21,9 +21,9 @@ TABLE_NAME_OLD = 'profiles_raw'
 # BASE_ID_NEW1 = 'appTEXhgxahKgWLgx'
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'profiles_cleaned'
-TABLE_NAME_NEW1 = 'contacts_berkleys_homes_copy'
+TABLE_NAME_NEW1 = 'contacts_berkleys_homes'
 TABLE_NAME_NEW2 = 'client_details'
-TABLE_NAME_NEW3 = 'contacts_taippa_marketing_copy'
+TABLE_NAME_NEW3 = 'contacts_taippa_marketing'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
 # API_KEY_NEW1 = os.getenv('AIRTABLE_API_KEY', 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d')
 # API_KEY_NEW1 = 'patPgbQSC8pAg1Gbl.7ca275de5a5c8f2cf4389452e91c8f3f6c3e37bb2967c0f4cd8f41fa9d99044d'
@@ -57,22 +57,8 @@ def record_exists_in_airtable(airtable_instance, record_data, unique_field):
 
 
 
-def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields=None, 
-                            field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
-    """
-    Send records to Airtable if they are new, dynamically selecting the Airtable instance
-    based on outreach_table value and applying icp_to_outreach mapping.
-
-    Args:
-        df (pd.DataFrame): Input DataFrame containing records to process.
-        airtable_instances (dict): Dictionary of Airtable instances keyed by table name.
-        unique_field (str): Unique field to check for duplicates in Airtable.
-        desired_fields (list, optional): List of fields to include in the record.
-        field_mapping (dict, optional): Mapping of field names (source_field: target_field).
-        default_values (dict, optional): Default values to include in the record.
-        icp_to_outreach (dict, optional): Mapping of outreach fields to icp_df fields.
-        icp_df (pd.DataFrame, optional): DataFrame containing ICP data with outreach_table references.
-    """
+def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
+  
     for i, row in df.iterrows():
         try:
             # Step 1: Convert row to dictionary
@@ -85,10 +71,30 @@ def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields
             # Step 3: Add uniqueId to record
             unique_id_value = f"{record_data.get('id', '')}_{record_data.get('email', '')}"
             record_data["unique_id"] = unique_id_value
-
-            # # Debug: Print record_data
-            # print(f"Record {i} - Processed Data: {record_data}")
-
+            
+            # Check if airtable_instances is "airtable_new"
+            if airtable_instances == airtable_new:
+                # Step 8: If "airtable_new", skip steps 4 and 5 and go directly to checking duplicates
+                airtable_instance = airtable_instances
+                if not airtable_instance:
+                    print(f"No Airtable instance for airtable_new. Skipping record {i}.")
+                    continue
+                
+            # Step 7: Remove 'created_time' field explicitly if it exists
+                if 'created_time' in record_data:
+                    del record_data['created_time']
+                # Step 8: Check for duplicates and insert
+                if not record_exists_in_airtable(airtable_instance, {"unique_id": unique_id_value}, unique_field):
+                    try:
+                        airtable_instance.insert(record_data)
+                        print(f"Record {i} inserted successfully into airtable_new.")
+                    except Exception as e:
+                        print(f"Failed to insert record {i}: {e}")
+                else:
+                    print(f"Record {i} already exists in airtable_new. Skipping insertion.")
+                continue  # Skip further steps for this iteration
+                
+            # If not "airtable_new", proceed with normal flow (Step 4 and Step 5)
             # Step 4: Find matching outreach_table
             outreach_table = None
             if icp_df is not None:
@@ -103,7 +109,7 @@ def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields
                 print(f"Outreach table is None for record {i}. Skipping.")
                 continue
 
-            # Fetch Airtable instance
+            # Select Airtable instance based on outreach_table
             airtable_instance = airtable_instances.get(outreach_table)
             if not airtable_instance:
                 print(f"No Airtable instance for outreach_table: {outreach_table}. Skipping record {i}.")
@@ -123,12 +129,19 @@ def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields
             if field_mapping:
                 record_data = {field_mapping.get(k, k): v for k, v in record_data.items()}
 
-            # Step 7: Add default values if provided
+            # Step 7: Remove 'created_time' field explicitly if it exists
+            if 'created_time' in record_data:
+                del record_data['created_time']
+            
+            # Add debug print to verify 'created_time' removal
+            # print(f"Record {i} after cleaning: {record_data}")
+
+            # Step 8: Add default values if provided
             if default_values:
                 for key, value in default_values.items():
                     record_data.setdefault(key, value)
 
-            # Step 8: Check for duplicates and insert
+            # Step 9: Check for duplicates and insert
             if not record_exists_in_airtable(airtable_instance, {"unique_id": unique_id_value}, unique_field):
                 try:
                     airtable_instance.insert(record_data)
@@ -140,7 +153,6 @@ def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields
 
         except Exception as e:
             print(f"Error processing record {i}: {e}")
-
 
 
 
@@ -415,21 +427,6 @@ def fetch_and_update_data():
             "fonts" : " Headlines: Anton Body: Poppins"
         }
        
-        # email = "mohammed@taippa.com"
-        # icp_records = airtable_new2.search('email', email)
-        # # icp_records = fetch_icp_records(df, airtable_new2, icp_field="associated_client_id")
-
-
-        # if not icp_records:
-        #     return jsonify({"error": f"No record found in ICP_information for email: {email}"}), 404
-
-        # # Extract fields from the first record
-        # icp_data = icp_records[0]['fields']  # Assuming first match is sufficient
-
-        # # Convert icp_data dictionary to a DataFrame
-        # icp_df = pd.DataFrame([icp_data])  # Wrap icp_data in a list to create a single-row DataFrame
-        # print("Fetched ICP Data as DataFrame:")
-        # print(icp_df)
         # Fetch ICP records based on associated_client_id
         icp_df = fetch_client_details(df, airtable_new2, icp_field="associated_client_id", client_details_field="client_id")
 
@@ -442,22 +439,22 @@ def fetch_and_update_data():
 
         # Convert icp_data dictionary to a DataFrame
         # icp_df = pd.DataFrame([icp_data])  # Wrap icp_data in a list to create a single-row DataFrame
-        print("Fetched ICP Data as DataFrame:")
-        print(icp_df)
+        # print("Fetched ICP Data as DataFrame:")
+        # print(icp_df)
 
         # Define field mapping for outreach_data
         icp_to_outreach_mapping = {
             "sender_email": "email",
-            "sender_company": "companyName",
-            "sender_name": "fullName",
-            "sender_title": "jobtitle",
-            "sender_company_website": "companyWebsite",
+            "sender_company": "company_name",
+            "sender_name": "full_name",
+            "sender_title": "job_title",
+            "sender_company_website": "company_website",
             "key_benefits" : "solution_benefits",            
             "impact_metrics" : "solution_impact_examples",
             "unique_features" : "unique_features",
         }
 
-        send_to_airtable_if_new(df, airtable_new, unique_field='uniqueId')
+        send_to_airtable_if_new(df, airtable_new, unique_field='unique_id')
         send_to_airtable_if_new(
             filtered_df,
             airtable_instances,
