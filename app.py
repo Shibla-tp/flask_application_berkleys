@@ -169,19 +169,6 @@ def clean_name(df, column_name):
     return df
 
 
-
-
-# def process_email(email):
-#     """
-#     Processes the email field:
-#     - If email is `,`, empty, or missing, return 'Unknown'.
-#     - Otherwise, return the original email.
-#     """
-#     if not email or email in [",", "unknown", "Unknown", ""]:
-#         return "Unknown"
-#     return email.strip()  # Clean leading/trailing spaces
-
-
 def process_email(email):
     """
     Processes an email to strip out any alias (e.g., test.email+alias@gmail.com should become test.email@gmail.com).
@@ -285,10 +272,7 @@ def fetch_and_update_data():
         # # Clean 'last_name'
         if 'last_name' in df.columns:
             df = clean_name(df, 'last_name')
-        # # Clean 'first_name'
-        # df['first_name'] = df['first_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
-        # # Clean 'last_name'
-        # df['last_name'] = df['last_name'].apply(lambda x: x.strip() if isinstance(x, str) else x)
+        
 
          # Clean 'email'
         if 'email' in df.columns:
@@ -322,16 +306,6 @@ def fetch_and_update_data():
                 # Remove pipe symbols and extra spaces
                 headline = headline.replace('|', ',')
                 headline = ' '.join(headline.split())  # Strip extra spaces
-                
-                # Remove special characters and symbols (e.g., "|", ":", etc.)
-                # headline = re.sub(r'[^\w\s.,-]', '', headline)
-                
-                # # Remove redundant or irrelevant phrases (you can adjust this list based on your needs)
-                # redundant_phrases = [
-                #     'notable experiences', 'luxury international brands', 'in mena', 'in international markets'
-                # ]
-                # for phrase in redundant_phrases:
-                #     headline = headline.replace(phrase, '')
                 
                 # Remove pipe symbols and extra spaces
                 headline = headline.replace('|', ',')
@@ -422,25 +396,16 @@ def fetch_and_update_data():
            
 
         default_values_campaign = {
-            "cta_options" : "Schedule a quick 15-minute call to discuss how we can help GrowthTech Solutions scale personalized email outreach. At https://taippa.com/contact/ ",
-            "color_scheme" : "#000000,#ffffff,#b366cf,#6834cb",
-            "fonts" : " Headlines: Anton Body: Poppins"
+            # "cta_options" : "Schedule a quick 15-minute call to discuss how we can help GrowthTech Solutions scale personalized email outreach. At https://taippa.com/contact/ ",
+            # "color_scheme" : "#000000,#ffffff,#b366cf,#6834cb",
+            # "fonts" : " Headlines: Anton Body: Poppins"
         }
        
         # Fetch ICP records based on associated_client_id
         icp_df = fetch_client_details(df, airtable_new2, icp_field="associated_client_id", client_details_field="client_id")
 
 
-        # if not icp_records:
-        #     return jsonify({"error": "No ICP records found based on associated_client_id."}), 404
-
-        # Extract fields from the first ICP record
-        # icp_data = icp_records[0]['fields']  # Assuming first match is sufficient
-
-        # Convert icp_data dictionary to a DataFrame
-        # icp_df = pd.DataFrame([icp_data])  # Wrap icp_data in a list to create a single-row DataFrame
-        # print("Fetched ICP Data as DataFrame:")
-        # print(icp_df)
+        
 
         # Define field mapping for outreach_data
         icp_to_outreach_mapping = {
@@ -452,6 +417,10 @@ def fetch_and_update_data():
             "key_benefits" : "solution_benefits",            
             "impact_metrics" : "solution_impact_examples",
             "unique_features" : "unique_features",
+            "cta_options" : "cta_options",
+            "color_scheme" : "color_scheme",
+            "font_style" : "font_style"
+
         }
 
         send_to_airtable_if_new(df, airtable_new, unique_field='unique_id')
@@ -471,7 +440,8 @@ def fetch_and_update_data():
                 "organization_short_description",
                 "unique_id",
                 "id",
-                "associated_client_id"
+                "associated_client_id",
+                "employment_summary"
             ],
             field_mapping=campaign_field_mapping,
             icp_to_outreach=icp_to_outreach_mapping,
