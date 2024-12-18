@@ -21,7 +21,7 @@ TABLE_NAME_OLD = 'profiles_raw'
 # BASE_ID_NEW1 = 'appTEXhgxahKgWLgx'
 BASE_ID_NEW = 'app5s8zl7DsUaDmtx'
 TABLE_NAME_NEW = 'profiles_cleaned'
-TABLE_NAME_NEW1 = 'contacts_berkleys_homes'
+TABLE_NAME_NEW1 = 'profiles_outreach'
 TABLE_NAME_NEW2 = 'client_details'
 TABLE_NAME_NEW3 = 'contacts_taippa_marketing'
 API_KEY_NEW = os.getenv('AIRTABLE_API_KEY', 'patELEdV0LAx6Aba3.393bf0e41eb59b4b80de15b94a3d122eab50035c7c34189b53ec561de590dff3')
@@ -38,10 +38,10 @@ try:
 except Exception as e:
     print(f"Error initializing Airtable: {e}")
 
-airtable_instances = {
-    "contacts_berkleys_homes": airtable_new1,
-    "contacts_taippa_marketing": airtable_new3,
-}
+# airtable_instances = {
+#     "contacts_berkleys_homes": airtable_new1,
+#     "contacts_taippa_marketing": airtable_new3,
+# }
 
 def record_exists_in_airtable(airtable_instance, record_data, unique_field):
     """
@@ -57,7 +57,7 @@ def record_exists_in_airtable(airtable_instance, record_data, unique_field):
 
 
 
-def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
+def send_to_airtable_if_new(df, airtable_instance, unique_field, desired_fields=None, field_mapping=None, default_values=None, icp_to_outreach=None, icp_df=None):
   
     for i, row in df.iterrows():
         try:
@@ -72,48 +72,48 @@ def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields
             unique_id_value = f"{record_data.get('id', '')}_{record_data.get('email', '')}"
             record_data["unique_id"] = unique_id_value
             
-            # Check if airtable_instances is "airtable_new"
-            if airtable_instances == airtable_new:
-                # Step 8: If "airtable_new", skip steps 4 and 5 and go directly to checking duplicates
-                airtable_instance = airtable_instances
-                if not airtable_instance:
-                    print(f"No Airtable instance for airtable_new. Skipping record {i}.")
-                    continue
+            # # Check if airtable_instances is "airtable_new"
+            # if airtable_instances == airtable_new:
+            #     # Step 8: If "airtable_new", skip steps 4 and 5 and go directly to checking duplicates
+            #     airtable_instance = airtable_instances
+            #     if not airtable_instance:
+            #         print(f"No Airtable instance for airtable_new. Skipping record {i}.")
+            #         continue
                 
-            # Step 7: Remove 'created_time' field explicitly if it exists
-                if 'created_time' in record_data:
-                    del record_data['created_time']
-                # Step 8: Check for duplicates and insert
-                if not record_exists_in_airtable(airtable_instance, {"unique_id": unique_id_value}, unique_field):
-                    try:
-                        airtable_instance.insert(record_data)
-                        print(f"Record {i} inserted successfully into airtable_new.")
-                    except Exception as e:
-                        print(f"Failed to insert record {i}: {e}")
-                else:
-                    print(f"Record {i} already exists in airtable_new. Skipping insertion.")
-                continue  # Skip further steps for this iteration
+            # # Step 7: Remove 'created_time' field explicitly if it exists
+            #     if 'created_time' in record_data:
+            #         del record_data['created_time']
+            #     # Step 8: Check for duplicates and insert
+            #     if not record_exists_in_airtable(airtable_instance, {"unique_id": unique_id_value}, unique_field):
+            #         try:
+            #             airtable_instance.insert(record_data)
+            #             print(f"Record {i} inserted successfully into airtable_new.")
+            #         except Exception as e:
+            #             print(f"Failed to insert record {i}: {e}")
+            #     else:
+            #         print(f"Record {i} already exists in airtable_new. Skipping insertion.")
+            #     continue  # Skip further steps for this iteration
                 
             # If not "airtable_new", proceed with normal flow (Step 4 and Step 5)
             # Step 4: Find matching outreach_table
-            outreach_table = None
-            if icp_df is not None:
-                client_id = row.get("associated_client_id")
-                if client_id:
-                    matching_row = icp_df[icp_df["client_id"] == client_id]
-                    if not matching_row.empty:
-                        outreach_table = matching_row.iloc[0]["outreach_table"]
+            # outreach_table = None
+            # if icp_df is not None:
+            #     client_id = row.get("associated_client_id")
+            #     if client_id:
+            #         matching_row = icp_df[icp_df["client_id"] == client_id]
+            #         if not matching_row.empty:
+            #             outreach_table = matching_row.iloc[0]["outreach_table"]
 
-            # Validate outreach_table
-            if not outreach_table:
-                print(f"Outreach table is None for record {i}. Skipping.")
-                continue
+            # # Validate outreach_table
+            # if not outreach_table:
+            #     print(f"Outreach table is None for record {i}. Skipping.")
+            #     continue
 
             # Select Airtable instance based on outreach_table
-            airtable_instance = airtable_instances.get(outreach_table)
-            if not airtable_instance:
-                print(f"No Airtable instance for outreach_table: {outreach_table}. Skipping record {i}.")
-                continue
+            # airtable_instance = airtable_instances.get(outreach_table)
+            # if not airtable_instance:
+            #     print(f"No Airtable instance for outreach_table: {outreach_table}. Skipping record {i}.")
+            #     continue
 
             # Step 5: Map icp_to_outreach fields if applicable
             if icp_to_outreach and icp_df is not None:
@@ -145,11 +145,11 @@ def send_to_airtable_if_new(df, airtable_instances, unique_field, desired_fields
             if not record_exists_in_airtable(airtable_instance, {"unique_id": unique_id_value}, unique_field):
                 try:
                     airtable_instance.insert(record_data)
-                    print(f"Record {i} inserted successfully into {outreach_table}.")
+                    print(f"Record {i} inserted successfully into {airtable_instance}.")
                 except Exception as e:
                     print(f"Failed to insert record {i}: {e}")
             else:
-                print(f"Record {i} already exists in {outreach_table}. Skipping insertion.")
+                print(f"Record {i} already exists in {airtable_instance}. Skipping insertion.")
 
         except Exception as e:
             print(f"Error processing record {i}: {e}")
@@ -419,14 +419,16 @@ def fetch_and_update_data():
             "unique_features" : "unique_features",
             "cta_options" : "cta_options",
             "color_scheme" : "color_scheme",
-            "font_style" : "font_style"
+            "font_style" : "font_style",
+            "instantly_campaign_id" : "instantly_campaign_id",
+            "business_type" : "business_type"
 
         }
 
         send_to_airtable_if_new(df, airtable_new, unique_field='unique_id')
         send_to_airtable_if_new(
             filtered_df,
-            airtable_instances,
+            airtable_new1,
             unique_field="unique_id",
             desired_fields=[
                 
